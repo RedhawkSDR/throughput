@@ -6,14 +6,12 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cmath>
+#include <cstring>
 
-#include <ctype.h>
-#include <unistd.h>
-#include <sys/types.h>
-#include <sys/socket.h>
-#include <sys/wait.h>
 #include <time.h>
 #include <getopt.h>
+
+#include "transport.h"
 
 std::string format_time(double seconds)
 {
@@ -54,10 +52,7 @@ void writer(int fd, size_t bufsize, size_t nbuffers)
     for (int ii = 0; ii < nbuffers; ++ii) {
         count += write(fd, &buffer[0], buffer.size());
     }
-    std::cout << "parent: wrote " << count << std::endl;
-
     read(fd, &count, sizeof(count));
-    std::cout << "parent: acknowledged " << count << std::endl;
 }
 
 void reader(int fd, size_t bufsize, size_t nbuffers)
@@ -70,8 +65,21 @@ void reader(int fd, size_t bufsize, size_t nbuffers)
     while (count < expected) {
         count += read(fd, &buffer[0], buffer.size());
     }
-    std::cout << "child: read " << count << std::endl;
     write(fd, &count, sizeof(count));
+}
+
+pid_t start_reader(Transport* transport, size_t bufsize, size_t nbuffers)
+{
+    pid_t reader_pid = fork();
+    if (reader_pid < 0) {
+        perror("fork");
+        exit(1);
+    } else if (reader_pid > 0) {
+        return reader_pid;
+    }
+
+    reader(transport->readfd(), bufsize, nbuffers);
+    exit(0);
 }
 
 int main(int argc, char* const argv[])
@@ -103,40 +111,42 @@ int main(int argc, char* const argv[])
         }
     }
 
-    int sv[2]; /* the pair of socket descriptors */
-    if (socketpair(AF_UNIX, SOCK_STREAM, 0, sv) == -1) {
-        perror("socketpair");
+    int sockfd = -1;
+    std::string address;
+    Transport* transport = 0;
+    if (transport_type == "unix") {
+        transport = new UnixTransport();
+    } else if (transport_type == "tcp") {
+        transport = new TcpTransport();
+    } else {
+        std::cerr << "Invalid tranport type '" << transport_type << "'" << std::endl;
         exit(1);
     }
 
-    pid_t reader_pid = fork();
-    if (reader_pid < 0) {
-        perror("fork");
-        exit(1);
-    } else if (reader_pid == 0) {  /* child */
-        reader(sv[1], transfer_size, total_transfers);
-    } else { /* parent */
-        // Mark start time
-        struct timespec start;
-        clock_gettime(CLOCK_MONOTONIC, &start);
+    pid_t reader_pid = start_reader(transport, transfer_size, total_transfers);
 
-        // Push data to socket
-        writer(sv[0], transfer_size, total_transfers);
+    int writefd = transport->writefd();
 
-        // Mark end time
-        struct timespec end;
-        clock_gettime(CLOCK_MONOTONIC, &end);
+    // Mark start time
+    struct timespec start;
+    clock_gettime(CLOCK_MONOTONIC, &start);
 
-        double elapsed = (end.tv_sec - start.tv_sec) + (end.tv_nsec-start.tv_nsec)*1e-9;
-        double throughput = (transfer_size*total_transfers) / elapsed;
+    // Push data to socket
+    writer(writefd, transfer_size, total_transfers);
 
-        std::cout << "Elapsed: " << format_time(elapsed) << std::endl;
-        std::cout << "Throughput: " << format_throughput(throughput) << std::endl;
+    // Mark end time
+    struct timespec end;
+    clock_gettime(CLOCK_MONOTONIC, &end);
 
-        // Wait for child to exit
-        int status;
-        waitpid(reader_pid, &status, 0);
-    }
+    double elapsed = (end.tv_sec - start.tv_sec) + (end.tv_nsec-start.tv_nsec)*1e-9;
+    double throughput = (transfer_size*total_transfers) / elapsed;
+
+    std::cout << "Elapsed: " << format_time(elapsed) << std::endl;
+    std::cout << "Throughput: " << format_throughput(throughput) << std::endl;
+
+    // Wait for child to exit
+    int status;
+    waitpid(reader_pid, &status, 0);
 
     return 0;
 }
