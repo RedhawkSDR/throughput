@@ -7,6 +7,7 @@
 #include <cstdlib>
 #include <cmath>
 #include <cstring>
+#include <algorithm>
 
 #include <time.h>
 #include <getopt.h>
@@ -41,6 +42,32 @@ std::string format_throughput(double bps)
     bps /= (int)pow(1024, exponent);
     oss << bps << ' ' << units[exponent-1];
     return oss.str();
+}
+
+int parse_number(const std::string& text)
+{
+    std::istringstream iss(text);
+    int result;
+    iss >> result;
+    if (!iss) {
+        throw std::invalid_argument("not a number: " + text);
+    }
+    if (!iss.eof()) {
+        // Assume next character is a suffix
+        char suffix;
+        iss >> suffix;
+        std::string::size_type exponent = std::string("kmg").find(std::tolower(suffix));
+        if (exponent == std::string::npos) {
+            throw std::invalid_argument("invalid suffix '" + std::string(1, suffix) + "'");
+        }
+        result *= std::pow(1024, exponent+1);
+
+        // There should be no more characters left in the string
+        if (iss.peek() != EOF) {
+            throw std::invalid_argument("extra characters in value '" + text + "'");
+        }
+    }
+    return result;
 }
 
 void writer(int fd, size_t bufsize, size_t nbuffers)
@@ -98,10 +125,10 @@ int main(int argc, char* const argv[])
     while ((opt = getopt_long(argc, argv, "n:s:", long_options, &index)) != -1) {
         switch (opt) {
         case 's':
-            transfer_size = atoi(optarg);
+            transfer_size = parse_number(optarg);
             break;
         case 'n':
-            total_transfers = atoi(optarg);
+            total_transfers = parse_number(optarg);
             break;
         case 'T':
             transport_type = optarg;
