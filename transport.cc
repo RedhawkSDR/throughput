@@ -8,6 +8,17 @@
 
 #include "transport.hh"
 
+Transport* Transport::Factory(const std::string& protocol)
+{
+    if (protocol == "unix") {
+        return new UnixTransport();
+    } else if (protocol == "tcp") {
+        return new TcpTransport();
+    } else {
+        throw std::invalid_argument("invalid transport type '" + protocol + "'");
+    }
+}
+
 UnixTransport::UnixTransport() :
     _readfd(-1),
     _writefd(-1)

@@ -85,17 +85,10 @@ class ThroughputTest
 {
 public:
     ThroughputTest(const std::string& protocol, size_t bufsize) :
+        _transport(Transport::Factory(protocol)),
         _bufsize(bufsize),
         _running(true)
     {
-        if (protocol == "unix") {
-            _transport = new UnixTransport();
-        } else if (protocol == "tcp") {
-            _transport = new TcpTransport();
-        } else {
-            throw std::invalid_argument("invalid transport type '" + protocol + "'");
-        }
-
         _reader = start_reader(_bufsize);
     }
 

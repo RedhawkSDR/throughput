@@ -8,6 +8,8 @@ public:
     virtual ~Transport() { }
     virtual int readfd() = 0;
     virtual int writefd() = 0;
+
+    static Transport* Factory(const std::string& protocol);
 };
 
 class UnixTransport : public Transport
