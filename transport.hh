@@ -1,3 +1,6 @@
+#ifndef _transport_hh_
+#define _transport_hh_
+
 #include <netinet/in.h>
 
 class Transport {
@@ -33,3 +36,5 @@ private:
     int _sockfd;
     struct sockaddr_in _addr;
 };
+
+#endif // _transport_hh_

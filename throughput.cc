@@ -14,7 +14,7 @@
 #include <getopt.h>
 #include <sys/wait.h>
 
-#include "transport.h"
+#include "transport.hh"
 
 std::string format_time(double seconds)
 {

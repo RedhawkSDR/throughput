@@ -6,7 +6,7 @@
 #include <sys/socket.h>
 #include <sys/un.h>
 
-#include "transport.h"
+#include "transport.hh"
 
 UnixTransport::UnixTransport() :
     _readfd(-1),
