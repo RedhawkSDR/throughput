@@ -128,7 +128,7 @@ private:
         buffer.resize(_bufsize);
 
         while (_running) {
-            write(fd, &buffer[0], buffer.size());
+            _count += write(fd, &buffer[0], buffer.size());
         }
 
         // Close the write side of the socket so the reader knows no more data
@@ -136,7 +136,11 @@ private:
         shutdown(fd, SHUT_WR);
 
         // Get the final acknowledged read count
-        read(fd, &_count, sizeof(_count));
+        ssize_t received = 0;
+        read(fd, &received, sizeof(received));
+        if (received != _count) {
+            std::cerr << "reader acknowledged fewer bytes than were sent" << std::endl;
+        }
     }
 
     void reader()
