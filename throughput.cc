@@ -72,44 +72,100 @@ int parse_number(const std::string& text)
     return result;
 }
 
-void writer(int fd, size_t bufsize, size_t nbuffers)
+class ThroughputTest
 {
-    std::vector<char> buffer;
-    buffer.resize(bufsize);
+public:
+    ThroughputTest(const std::string& protocol, size_t bufsize, size_t nbuffers) :
+        _bufsize(bufsize),
+        _nbuffers(nbuffers)
+    {
+        if (protocol == "unix") {
+            _transport = new UnixTransport();
+        } else if (protocol == "tcp") {
+            _transport = new TcpTransport();
+        } else {
+            throw std::invalid_argument("invalid transport type '" + protocol + "'");
+        }
 
-    ssize_t count = 0;
-    for (int ii = 0; ii < nbuffers; ++ii) {
-        count += write(fd, &buffer[0], buffer.size());
-    }
-    read(fd, &count, sizeof(count));
-}
-
-void reader(int fd, size_t bufsize, size_t nbuffers)
-{
-    std::vector<char> buffer;
-    buffer.resize(bufsize);
-
-    ssize_t count = 0;
-    size_t expected = bufsize*nbuffers;
-    while (count < expected) {
-        count += read(fd, &buffer[0], buffer.size());
-    }
-    write(fd, &count, sizeof(count));
-}
-
-pid_t start_reader(Transport* transport, size_t bufsize, size_t nbuffers)
-{
-    pid_t reader_pid = fork();
-    if (reader_pid < 0) {
-        perror("fork");
-        exit(1);
-    } else if (reader_pid > 0) {
-        return reader_pid;
     }
 
-    reader(transport->readfd(), bufsize, nbuffers);
-    exit(0);
-}
+    double run()
+    {
+        pid_t reader_pid = start_reader(_bufsize, _nbuffers);
+        int writefd = _transport->writefd();
+
+        // Mark start time
+        struct timespec start;
+        clock_gettime(CLOCK_MONOTONIC, &start);
+
+        // Push data to socket
+        writer(writefd, _bufsize, _nbuffers);
+
+        // Mark end time
+        struct timespec end;
+        clock_gettime(CLOCK_MONOTONIC, &end);
+
+        double elapsed = (end.tv_sec - start.tv_sec) + (end.tv_nsec-start.tv_nsec)*1e-9;
+        double throughput = (_bufsize*_nbuffers) / elapsed;
+
+        std::cout << "Elapsed: " << format_time(elapsed) << std::endl;
+        std::cout << "Throughput: " << format_throughput(throughput) << std::endl;
+
+        // Wait for child to exit
+        int status;
+        waitpid(reader_pid, &status, 0);
+
+        return throughput;
+    }
+
+    ~ThroughputTest()
+    {
+    }
+    
+private:
+    static void writer(int fd, size_t bufsize, size_t nbuffers)
+    {
+        std::vector<char> buffer;
+        buffer.resize(bufsize);
+
+        ssize_t count = 0;
+        for (int ii = 0; ii < nbuffers; ++ii) {
+            count += write(fd, &buffer[0], buffer.size());
+        }
+        read(fd, &count, sizeof(count));
+    }
+
+    static void reader(int fd, size_t bufsize, size_t nbuffers)
+    {
+        std::vector<char> buffer;
+        buffer.resize(bufsize);
+
+        ssize_t count = 0;
+        size_t expected = bufsize*nbuffers;
+        while (count < expected) {
+            count += read(fd, &buffer[0], buffer.size());
+        }
+        write(fd, &count, sizeof(count));
+    }
+
+    pid_t start_reader(size_t bufsize, size_t nbuffers)
+    {
+        pid_t reader_pid = fork();
+        if (reader_pid < 0) {
+            perror("fork");
+            exit(1);
+        } else if (reader_pid > 0) {
+            return reader_pid;
+        }
+
+        reader(_transport->readfd(), bufsize, nbuffers);
+        exit(0);
+    }
+
+    Transport* _transport;
+    size_t _bufsize;
+    size_t _nbuffers;
+};
 
 int main(int argc, char* const argv[])
 {
@@ -140,42 +196,8 @@ int main(int argc, char* const argv[])
         }
     }
 
-    int sockfd = -1;
-    std::string address;
-    Transport* transport = 0;
-    if (transport_type == "unix") {
-        transport = new UnixTransport();
-    } else if (transport_type == "tcp") {
-        transport = new TcpTransport();
-    } else {
-        std::cerr << "Invalid tranport type '" << transport_type << "'" << std::endl;
-        exit(1);
-    }
+    ThroughputTest test(transport_type, transfer_size, total_transfers);
 
-    pid_t reader_pid = start_reader(transport, transfer_size, total_transfers);
-
-    int writefd = transport->writefd();
-
-    // Mark start time
-    struct timespec start;
-    clock_gettime(CLOCK_MONOTONIC, &start);
-
-    // Push data to socket
-    writer(writefd, transfer_size, total_transfers);
-
-    // Mark end time
-    struct timespec end;
-    clock_gettime(CLOCK_MONOTONIC, &end);
-
-    double elapsed = (end.tv_sec - start.tv_sec) + (end.tv_nsec-start.tv_nsec)*1e-9;
-    double throughput = (transfer_size*total_transfers) / elapsed;
-
-    std::cout << "Elapsed: " << format_time(elapsed) << std::endl;
-    std::cout << "Throughput: " << format_throughput(throughput) << std::endl;
-
-    // Wait for child to exit
-    int status;
-    waitpid(reader_pid, &status, 0);
-
+    double throughput = test.run();
     return 0;
 }
