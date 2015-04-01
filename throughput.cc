@@ -8,6 +8,7 @@
 #include <cmath>
 #include <cstring>
 #include <algorithm>
+#include <stdexcept>
 
 #include <time.h>
 #include <getopt.h>

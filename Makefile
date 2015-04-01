@@ -1,3 +1,3 @@
 LDFLAGS = -lrt
 
-throughput: throughput.cc
+throughput: throughput.cc transport.cc
