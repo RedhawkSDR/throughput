@@ -13,6 +13,7 @@
 #include <unistd.h>
 #include <getopt.h>
 #include <sys/wait.h>
+#include <pthread.h>
 
 #include "transport.hh"
 
@@ -39,6 +40,9 @@ std::string format_throughput(double bps)
         "MBps",
         "GBps",
     };
+    if (bps <= 0.0) {
+        return "0";
+    }
     std::ostringstream oss;
     int exponent = std::log(bps)/log(1024);
     bps /= (int)pow(1024, exponent);
@@ -72,12 +76,17 @@ int parse_number(const std::string& text)
     return result;
 }
 
+double parse_time(const std::string& text)
+{
+    return atof(text.c_str());
+}
+
 class ThroughputTest
 {
 public:
-    ThroughputTest(const std::string& protocol, size_t bufsize, size_t nbuffers) :
+    ThroughputTest(const std::string& protocol, size_t bufsize) :
         _bufsize(bufsize),
-        _nbuffers(nbuffers)
+        _running(true)
     {
         if (protocol == "unix") {
             _transport = new UnixTransport();
@@ -92,18 +101,23 @@ public:
 
     void start()
     {
-        int writefd = _transport->writefd();
-
-        // Push data to socket
-        writer(writefd, _bufsize, _nbuffers);
+        pthread_create(&_writer, NULL, &ThroughputTest::writer_thread, this);
     }
 
-    size_t stop()
+    void stop()
     {
-        // Wait for child to exit
+        // Wait for writer to exit
+        _running = false;
+        pthread_join(_writer, NULL);
+
+        // Wait for reader to exit
         int status;
         waitpid(_reader, &status, 0);
-        return _bufsize*_nbuffers;
+    }
+
+    size_t count()
+    {
+        return _count;
     }
 
     ~ThroughputTest()
@@ -111,21 +125,23 @@ public:
     }
     
 private:
-    static void writer(int fd, size_t bufsize, size_t nbuffers)
+    void writer()
     {
-        std::vector<char> buffer;
-        buffer.resize(bufsize);
+        int fd = _transport->writefd();
 
-        ssize_t count = 0;
-        for (int ii = 0; ii < nbuffers; ++ii) {
-            count += write(fd, &buffer[0], buffer.size());
+        // Push data to socket
+        std::vector<char> buffer;
+        buffer.resize(_bufsize);
+
+        while (_running) {
+            write(fd, &buffer[0], buffer.size());
         }
         // Close the write side of the socket so the reader knows no more data
         // is coming
         shutdown(fd, SHUT_WR);
 
         // Get the final acknowledged read count
-        read(fd, &count, sizeof(count));
+        read(fd, &_count, sizeof(_count));
     }
 
     static void reader(int fd, size_t bufsize)
@@ -161,10 +177,20 @@ private:
         exit(0);
     }
 
+    static void* writer_thread(void* data)
+    {
+        ThroughputTest* test = (ThroughputTest*)data;
+        test->writer();
+        return 0;
+    }
+
     Transport* _transport;
     size_t _bufsize;
-    size_t _nbuffers;
     pid_t _reader;
+    ssize_t _count;
+
+    pthread_t _writer;
+    volatile bool _running;
 };
 
 int main(int argc, char* const argv[])
@@ -172,6 +198,7 @@ int main(int argc, char* const argv[])
     size_t transfer_size = 1024;
     size_t total_transfers = 1000;
     std::string transport_type = "unix";
+    double time_period = 1.0;
 
     struct option long_options[] = {
         {"transport", required_argument, 0, 'T'},
@@ -180,13 +207,16 @@ int main(int argc, char* const argv[])
 
     char opt;
     int index;
-    while ((opt = getopt_long(argc, argv, "n:s:", long_options, &index)) != -1) {
+    while ((opt = getopt_long(argc, argv, "n:s:t:", long_options, &index)) != -1) {
         switch (opt) {
         case 's':
             transfer_size = parse_number(optarg);
             break;
         case 'n':
             total_transfers = parse_number(optarg);
+            break;
+        case 't':
+            time_period = parse_time(optarg);
             break;
         case 'T':
             transport_type = optarg;
@@ -196,14 +226,17 @@ int main(int argc, char* const argv[])
         }
     }
 
-    ThroughputTest test(transport_type, transfer_size, total_transfers);
+    ThroughputTest test(transport_type, transfer_size);
 
     // Mark start time
     struct timespec start;
     clock_gettime(CLOCK_MONOTONIC, &start);
 
     test.start();
-    size_t total_elements = test.stop();
+    sleep(time_period);
+    test.stop();
+
+    size_t total_elements = test.count();
 
     // Mark end time
     struct timespec end;
