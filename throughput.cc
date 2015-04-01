@@ -6,12 +6,13 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cmath>
-#include <cstring>
 #include <algorithm>
 #include <stdexcept>
 
 #include <time.h>
+#include <unistd.h>
 #include <getopt.h>
+#include <sys/wait.h>
 
 #include "transport.h"
 
