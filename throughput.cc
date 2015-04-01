@@ -12,7 +12,6 @@
 #include <time.h>
 #include <unistd.h>
 #include <getopt.h>
-#include <sys/wait.h>
 #include <pthread.h>
 
 #include "transport.hh"
@@ -87,9 +86,10 @@ public:
     ThroughputTest(const std::string& protocol, size_t bufsize) :
         _transport(Transport::Factory(protocol)),
         _bufsize(bufsize),
-        _running(true)
+        _running(true),
+        _count(0)
     {
-        _reader = start_reader(_bufsize);
+        pthread_create(&_reader, NULL, &ThroughputTest::reader_thread, this);
     }
 
     void start()
@@ -104,8 +104,7 @@ public:
         pthread_join(_writer, NULL);
 
         // Wait for reader to exit
-        int status;
-        waitpid(_reader, &status, 0);
+        pthread_join(_reader, NULL);
     }
 
     size_t count()
@@ -138,10 +137,12 @@ private:
         read(fd, &_count, sizeof(_count));
     }
 
-    static void reader(int fd, size_t bufsize)
+    void reader()
     {
+        int fd = _transport->readfd();
+
         std::vector<char> buffer;
-        buffer.resize(bufsize);
+        buffer.resize(_bufsize);
 
         ssize_t count = 0;
         while (true) {
@@ -157,18 +158,11 @@ private:
         write(fd, &count, sizeof(count));
     }
 
-    pid_t start_reader(size_t bufsize)
+    static void* reader_thread(void* data)
     {
-        pid_t reader_pid = fork();
-        if (reader_pid < 0) {
-            perror("fork");
-            exit(1);
-        } else if (reader_pid > 0) {
-            return reader_pid;
-        }
-
-        reader(_transport->readfd(), bufsize);
-        exit(0);
+        ThroughputTest* test = (ThroughputTest*)data;
+        test->reader();
+        return 0;
     }
 
     static void* writer_thread(void* data)
@@ -180,11 +174,12 @@ private:
 
     Transport* _transport;
     size_t _bufsize;
-    pid_t _reader;
-    ssize_t _count;
 
+    pthread_t _reader;
     pthread_t _writer;
     volatile bool _running;
+
+    ssize_t _count;
 };
 
 int main(int argc, char* const argv[])
