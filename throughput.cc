@@ -136,6 +136,7 @@ private:
         while (_running) {
             write(fd, &buffer[0], buffer.size());
         }
+
         // Close the write side of the socket so the reader knows no more data
         // is coming
         shutdown(fd, SHUT_WR);
@@ -196,9 +197,9 @@ private:
 int main(int argc, char* const argv[])
 {
     size_t transfer_size = 1024;
-    size_t total_transfers = 1000;
     std::string transport_type = "unix";
     double time_period = 1.0;
+    int count = 1;
 
     struct option long_options[] = {
         {"transport", required_argument, 0, 'T'},
@@ -213,7 +214,7 @@ int main(int argc, char* const argv[])
             transfer_size = parse_number(optarg);
             break;
         case 'n':
-            total_transfers = parse_number(optarg);
+            count = atoi(optarg);
             break;
         case 't':
             time_period = parse_time(optarg);
@@ -226,27 +227,39 @@ int main(int argc, char* const argv[])
         }
     }
 
-    ThroughputTest test(transport_type, transfer_size);
+    std::vector<ThroughputTest*> tests;
+    for (int ii = 0; ii < count; ++ii) {
+        tests.push_back(new ThroughputTest(transport_type, transfer_size));
+    }
 
     // Mark start time
     struct timespec start;
     clock_gettime(CLOCK_MONOTONIC, &start);
 
-    test.start();
-    sleep(time_period);
-    test.stop();
+    for (int ii = 0; ii < tests.size(); ++ii) {
+        tests[ii]->start();
+    }
 
-    size_t total_elements = test.count();
+    sleep(time_period);
+
+    for (int ii = 0; ii < tests.size(); ++ii) {
+        tests[ii]->stop();
+    }
 
     // Mark end time
     struct timespec end;
     clock_gettime(CLOCK_MONOTONIC, &end);
 
     double elapsed = (end.tv_sec - start.tv_sec) + (end.tv_nsec-start.tv_nsec)*1e-9;
-    double throughput = (total_elements) / elapsed;
-
     std::cout << "Elapsed: " << format_time(elapsed) << std::endl;
-    std::cout << "Throughput: " << format_throughput(throughput) << std::endl;
+
+    double aggregate_throughput = 0.0;
+    for (int ii = 0; ii < tests.size(); ++ii) {
+        double throughput = tests[ii]->count() / elapsed;
+        aggregate_throughput += throughput;
+    }
+
+    std::cout << "Throughput: " << format_throughput(aggregate_throughput) << std::endl;
 
     return 0;
 }
