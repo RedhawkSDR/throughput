@@ -119,6 +119,8 @@ public:
 private:
     void writer()
     {
+        pthread_setname_np(_writer, "write-thread");
+
         int fd = _transport->writefd();
 
         // Push data to socket
@@ -139,6 +141,8 @@ private:
 
     void reader()
     {
+        pthread_setname_np(_reader, "read-thread");
+
         int fd = _transport->readfd();
 
         std::vector<char> buffer;
