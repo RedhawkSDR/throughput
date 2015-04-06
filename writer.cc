@@ -38,12 +38,11 @@ int main(int argc, const char* argv[])
 
         struct sockaddr_un server;
         server.sun_family = AF_UNIX;
-        sprintf(server.sun_path, "/tmp/writer-%d", getpid());
-        unlink(server.sun_path);
+        snprintf(server.sun_path, sizeof(server.sun_path), "@writer-%d", getpid());
         socklen_t len = strlen(server.sun_path) + sizeof(server.sun_family);
-        bind(sockfd, (struct sockaddr*)&server, len);
-
         std::cout << server.sun_path << std::endl;
+        server.sun_path[0] = '\0';
+        bind(sockfd, (struct sockaddr*)&server, len);
     } else {
         std::cerr << "Unknown protocol '" << argv[1] << "'" << std::endl;
     }

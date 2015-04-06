@@ -50,7 +50,7 @@ if __name__ == '__main__':
     writer_proc = subprocess.Popen(writer_args, stdout=subprocess.PIPE)
     writer_addr = writer_proc.stdout.readline().rstrip()
 
-    reader_args = ['./reader', writer_addr, str(transfer_size)]
+    reader_args = ['./reader', transport, writer_addr, str(transfer_size)]
     reader_proc = subprocess.Popen(reader_args, stdout=subprocess.PIPE)
 
     time.sleep(time_period)
