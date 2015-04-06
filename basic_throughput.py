@@ -53,8 +53,12 @@ if __name__ == '__main__':
     reader_args = ['./reader', transport, writer_addr, str(transfer_size)]
     reader_proc = subprocess.Popen(reader_args, stdout=subprocess.PIPE)
 
+    start = time.time()
     time.sleep(time_period)
     os.kill(writer_proc.pid, signal.SIGINT)
-    
+    elapsed = time.time() - start
+
     read_count = int(reader_proc.stdout.readline().rstrip())
-    print read_count
+
+    print 'Elapsed:', elapsed, 'sec'
+    print 'Throughput:', read_count / elapsed / (1024**3), 'GBps'
