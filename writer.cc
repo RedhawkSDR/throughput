@@ -1,12 +1,14 @@
 #include <iostream>
+#include <vector>
 #include <cstdlib>
 #include <cstdio>
 
 #include <signal.h>
 #include <unistd.h>
 #include <sys/socket.h>
+#include <netinet/in.h>
+#include <arpa/inet.h>
 #include <sys/un.h>
-#include <linux/limits.h>
 
 static volatile bool running = true;
 
@@ -43,27 +45,50 @@ int main(int argc, const char* argv[])
         std::cout << server.sun_path << std::endl;
         server.sun_path[0] = '\0';
         bind(sockfd, (struct sockaddr*)&server, len);
+    } else if (strcmp(argv[1], "tcp") == 0) {
+        sockfd = socket(AF_INET, SOCK_STREAM, 0);
+        if (sockfd < 0) {
+            perror("socket");
+            exit(1);
+        }
+
+        struct sockaddr_in server;
+        memset(&server, 0, sizeof(sockaddr_in));
+        server.sin_family = AF_INET;
+        server.sin_port = 0;
+        server.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
+        if (bind(sockfd, (struct sockaddr*)&server, sizeof(server)) < 0) {
+            perror("bind");
+            exit(1);
+        }
+
+        socklen_t len = sizeof(server);
+        if (getsockname(sockfd, (struct sockaddr*)&server, &len) < 0) {
+            perror("getsockname");
+            exit(1);
+        }
+
+        std::cout << inet_ntoa(server.sin_addr) << ":" << server.sin_port << std::endl;
     } else {
         std::cerr << "Unknown protocol '" << argv[1] << "'" << std::endl;
+        exit(1);
     }
 
     listen(sockfd, 1);
 
     int bufsize = atoi(argv[2]);
-    char* buffer = (char*)malloc(bufsize);
-    memset(buffer, 0, bufsize);
+    std::vector<char> buffer;
+    buffer.resize(bufsize);
 
     int fd = accept(sockfd, NULL, NULL);
 
     ssize_t count = 0;
     while (running) {
-        count += write(fd, buffer, bufsize);
+        count += write(fd, &buffer[0], buffer.size());
     }
 
-    /* Close the socket so the reader knows no more data is coming */
+    // Close the socket so the reader knows no more data is coming
     close(fd);
-
-    free(buffer);
 
     exit(0);
 }
