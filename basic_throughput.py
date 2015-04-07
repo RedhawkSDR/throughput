@@ -34,9 +34,10 @@ if __name__ == '__main__':
     transport = 'unix'
     time_period = 10.0
     numa_distance = None
+    data_format = 'octet'
     count = 1
 
-    opts, args = getopt.getopt(sys.argv[1:], 'n:s:t:', ['transport=', 'interface=', 'numa-distance='])
+    opts, args = getopt.getopt(sys.argv[1:], 'n:s:t:', ['transport=', 'interface=', 'numa-distance=', 'format='])
     for key, value in opts:
         if key == '-n':
             count = int(value)
@@ -50,6 +51,8 @@ if __name__ == '__main__':
             numa_distance = int(value)
         elif key == '--interface':
             interface = value
+        elif key == '--format':
+            data_format = value
 
     numa_policy = numa.NumaPolicy(numa_distance)
 
@@ -59,7 +62,8 @@ if __name__ == '__main__':
         factory = corba.factory(transport)
     else:
         raise SystemExit('No interface '+interface)
-    tests = [factory.create('octet', transfer_size, numa_policy.next()) for ii in xrange(count)]
+
+    tests = [factory.create(data_format, transfer_size, numa_policy.next()) for ii in xrange(count)]
 
     start = time.time()
     for test in tests:
