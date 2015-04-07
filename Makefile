@@ -10,4 +10,4 @@ reader: reader.cc
 writer: writer.cc
 
 clean:
-	rm -f throughput
+	rm -f throughput reader writer
