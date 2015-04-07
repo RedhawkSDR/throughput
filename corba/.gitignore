@@ -3,3 +3,5 @@ rawdata__POA/
 rawdata_idl.py
 rawdata.hh
 rawdataSK.cc
+reader
+writer

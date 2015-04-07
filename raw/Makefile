@@ -1,13 +1,11 @@
-LDFLAGS = -lrt -pthread
-CXXFLAGS = -pthread -g -O2
+LDFLAGS = -lrt
+CXXFLAGS = -g -O2
 
-all: reader writer throughput
-
-throughput: throughput.cc transport.cc
+all: reader writer
 
 reader: reader.cc
 
 writer: writer.cc
 
 clean:
-	rm -f throughput reader writer
+	rm -f reader writer
