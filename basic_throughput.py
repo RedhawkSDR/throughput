@@ -4,6 +4,25 @@ import signal
 import subprocess
 import time
 import getopt
+import itertools
+
+import numa
+
+class DefaultPolicy(object):
+    def next(self):
+        return itertools.repeat(None)
+
+class NumaPolicy(object):
+    def __init__(self, distance):
+        self.nodes = itertools.cycle(numa.get_nodes())
+        self.distance = distance
+
+    def next(self):
+        if self.distance == 0:
+            return itertools.repeat(self.nodes.next())
+        else:
+            return itertools.islice(self.nodes, 0, None, self.distance)
+
 
 def samples_to_int(value):
     scale = 1
@@ -28,15 +47,22 @@ def time_to_sec(value):
     return float(value)*scale
 
 class IpcThroughputTest(object):
-    def __init__(self, transport, transfer_size):
+    def __init__(self, transport, transfer_size, numa_policy):
+        self.numa_policy = numa_policy
         self.received = 0
 
         writer_args = ['./writer', transport, str(transfer_size)]
-        self.writer_proc = subprocess.Popen(writer_args, stdin=subprocess.PIPE, stdout=subprocess.PIPE)
+        self.writer_proc = self.launch(writer_args, stdin=subprocess.PIPE, stdout=subprocess.PIPE)
         writer_addr = self.writer_proc.stdout.readline().rstrip()
 
         reader_args = ['./reader', transport, writer_addr, str(transfer_size)]
-        self.reader_proc = subprocess.Popen(reader_args, stdout=subprocess.PIPE)
+        self.reader_proc = self.launch(reader_args, stdout=subprocess.PIPE)
+
+    def launch(self, command, *args, **kwargs):
+        node = self.numa_policy.next()
+        if node is not None:
+            command = ['numactl', '--cpunodebind=%d' % node] + command
+        return subprocess.Popen(command, *args, **kwargs)
 
     def start(self):
         self.writer_proc.stdin.write('\n')
@@ -55,6 +81,7 @@ if __name__ == '__main__':
     transfer_size = 1024
     transport = 'unix'
     time_period = 10.0
+    numa_distance = None
     count = 1
 
     opts, args = getopt.getopt(sys.argv[1:], 'n:s:t:', ['transport=', 'numa-distance='])
@@ -70,7 +97,12 @@ if __name__ == '__main__':
         elif key == '--numa-distance':
             numa_distance = int(value)
 
-    tests = [IpcThroughputTest(transport, transfer_size) for ii in xrange(count)]
+    if numa_distance == None:
+        numa_policy = DefaultPolicy()
+    else:
+        numa_policy = NumaPolicy(numa_distance)
+
+    tests = [IpcThroughputTest(transport, transfer_size, numa_policy.next()) for ii in xrange(count)]
 
     start = time.time()
     for test in tests:
