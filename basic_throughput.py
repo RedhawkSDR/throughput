@@ -47,13 +47,14 @@ if __name__ == '__main__':
             numa_distance = int(value)
 
     writer_args = ['./writer', transport, str(transfer_size)]
-    writer_proc = subprocess.Popen(writer_args, stdout=subprocess.PIPE)
+    writer_proc = subprocess.Popen(writer_args, stdin=subprocess.PIPE, stdout=subprocess.PIPE)
     writer_addr = writer_proc.stdout.readline().rstrip()
 
     reader_args = ['./reader', transport, writer_addr, str(transfer_size)]
     reader_proc = subprocess.Popen(reader_args, stdout=subprocess.PIPE)
 
     start = time.time()
+    writer_proc.stdin.write('\n')
     time.sleep(time_period)
     os.kill(writer_proc.pid, signal.SIGINT)
     elapsed = time.time() - start

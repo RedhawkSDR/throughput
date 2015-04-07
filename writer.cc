@@ -82,6 +82,9 @@ int main(int argc, const char* argv[])
 
     int fd = accept(sockfd, NULL, NULL);
 
+    char temp;
+    std::cin.get(temp);
+
     ssize_t count = 0;
     while (running) {
         count += write(fd, &buffer[0], buffer.size());
