@@ -2,7 +2,7 @@ import os
 import signal
 import subprocess
 
-__all__ = ('RawThroughputTest')
+__all__ = ('factory')
 
 class RawThroughputTest(object):
     def __init__(self, transport, transfer_size, numa_policy):
@@ -27,3 +27,13 @@ class RawThroughputTest(object):
         # already exited
         self.writer_proc.kill()
         self.reader_proc.kill()
+
+class RawTestFactory(object):
+    def __init__(self, transport):
+        self.transport = transport
+
+    def create(self, format, transfer_size, numa_policy):
+        return RawThroughputTest(self.transport, transfer_size, numa_policy)
+
+def factory(transport):
+    return RawTestFactory(transport)

@@ -1,0 +1,18 @@
+module rawdata {
+    typedef sequence<octet> octet_sequence;
+    typedef sequence<short> short_sequence;
+    typedef sequence<float> float_sequence;
+
+    interface reader {
+        void push_octet(in octet_sequence data);
+        void push_short(in short_sequence data);
+        void push_float(in float_sequence data);
+        long long received();
+    };
+
+    interface writer {
+        void connect(in reader target, in string format, in long length);
+        void start();
+        void stop();
+    };
+};
