@@ -27,6 +27,30 @@ def time_to_sec(value):
             scale = 1.0
     return float(value)*scale
 
+class IpcThroughputTest(object):
+    def __init__(self, transport, transfer_size):
+        self.received = 0
+
+        writer_args = ['./writer', transport, str(transfer_size)]
+        self.writer_proc = subprocess.Popen(writer_args, stdin=subprocess.PIPE, stdout=subprocess.PIPE)
+        writer_addr = self.writer_proc.stdout.readline().rstrip()
+
+        reader_args = ['./reader', transport, writer_addr, str(transfer_size)]
+        self.reader_proc = subprocess.Popen(reader_args, stdout=subprocess.PIPE)
+
+    def start(self):
+        self.writer_proc.stdin.write('\n')
+
+    def stop(self):
+        os.kill(self.writer_proc.pid, signal.SIGINT)
+        self.received = int(self.reader_proc.stdout.readline().rstrip())
+
+    def terminate(self):
+        # Assuming stop() was already called, the reader and writer should have
+        # already exited
+        self.writer_proc.kill()
+        self.reader_proc.kill()
+
 if __name__ == '__main__':
     transfer_size = 1024
     transport = 'unix'
@@ -46,20 +70,22 @@ if __name__ == '__main__':
         elif key == '--numa-distance':
             numa_distance = int(value)
 
-    writer_args = ['./writer', transport, str(transfer_size)]
-    writer_proc = subprocess.Popen(writer_args, stdin=subprocess.PIPE, stdout=subprocess.PIPE)
-    writer_addr = writer_proc.stdout.readline().rstrip()
-
-    reader_args = ['./reader', transport, writer_addr, str(transfer_size)]
-    reader_proc = subprocess.Popen(reader_args, stdout=subprocess.PIPE)
+    tests = [IpcThroughputTest(transport, transfer_size) for ii in xrange(count)]
 
     start = time.time()
-    writer_proc.stdin.write('\n')
+    for test in tests:
+        test.start()
     time.sleep(time_period)
-    os.kill(writer_proc.pid, signal.SIGINT)
+    for test in tests:
+        test.stop()
     elapsed = time.time() - start
 
-    read_count = int(reader_proc.stdout.readline().rstrip())
+    aggregate_throughput = 0.0
+    for test in tests:
+        read_count = test.received
+        test.terminate()
+        aggregate_throughput += read_count/elapsed
 
     print 'Elapsed:', elapsed, 'sec'
-    print 'Throughput:', read_count / elapsed / (1024**3), 'GBps'
+    print 'Throughput:', aggregate_throughput / (1024**3), 'GBps'
+
