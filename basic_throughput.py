@@ -1,11 +1,10 @@
-import os
 import sys
 import signal
-import subprocess
 import time
 import getopt
 
 import numa
+import raw
 
 def samples_to_int(value):
     scale = 1
@@ -29,30 +28,6 @@ def time_to_sec(value):
             scale = 1.0
     return float(value)*scale
 
-class IpcThroughputTest(object):
-    def __init__(self, transport, transfer_size, numa_policy):
-        self.received = 0
-
-        writer_args = numa_policy(['./writer', transport, str(transfer_size)])
-        self.writer_proc = subprocess.Popen(writer_args, stdin=subprocess.PIPE, stdout=subprocess.PIPE)
-        writer_addr = self.writer_proc.stdout.readline().rstrip()
-
-        reader_args = numa_policy(['./reader', transport, writer_addr, str(transfer_size)])
-        self.reader_proc = subprocess.Popen(reader_args, stdout=subprocess.PIPE)
-
-    def start(self):
-        self.writer_proc.stdin.write('\n')
-
-    def stop(self):
-        os.kill(self.writer_proc.pid, signal.SIGINT)
-        self.received = int(self.reader_proc.stdout.readline().rstrip())
-
-    def terminate(self):
-        # Assuming stop() was already called, the reader and writer should have
-        # already exited
-        self.writer_proc.kill()
-        self.reader_proc.kill()
-
 if __name__ == '__main__':
     transfer_size = 1024
     transport = 'unix'
@@ -75,7 +50,7 @@ if __name__ == '__main__':
 
     numa_policy = numa.NumaPolicy(numa_distance)
 
-    tests = [IpcThroughputTest(transport, transfer_size, numa_policy.next()) for ii in xrange(count)]
+    tests = [raw.RawThroughputTest(transport, transfer_size, numa_policy.next()) for ii in xrange(count)]
 
     start = time.time()
     for test in tests:
