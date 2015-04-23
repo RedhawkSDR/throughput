@@ -27,6 +27,8 @@ class RawThroughputTest(object):
         # already exited
         self.writer_proc.kill()
         self.reader_proc.kill()
+        self.writer_proc.wait()
+        self.reader_proc.wait()
 
 class RawTestFactory(object):
     def __init__(self, transport):
@@ -34,6 +36,9 @@ class RawTestFactory(object):
 
     def create(self, format, transfer_size, numa_policy):
         return RawThroughputTest(self.transport, transfer_size, numa_policy)
+
+    def cleanup(self):
+        pass
 
 def factory(transport):
     return RawTestFactory(transport)

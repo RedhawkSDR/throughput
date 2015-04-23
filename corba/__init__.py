@@ -37,6 +37,10 @@ class CorbaThroughputTest(object):
     def terminate(self):
         self.reader_proc.terminate()
         self.writer_proc.terminate()
+        self.reader_proc.kill()
+        self.writer_proc.kill()
+        self.reader_proc.wait()
+        self.reader_proc.wait()
 
 class CorbaTestFactory(object):
     def __init__(self, transport):
@@ -49,6 +53,9 @@ class CorbaTestFactory(object):
 
     def create(self, data_format, transfer_size, numa_policy):
         return CorbaThroughputTest(self.orbargs, self.orb, data_format, transfer_size, numa_policy)
+
+    def cleanup(self):
+        self.orb.destroy()
 
 def factory(transport):
     return CorbaTestFactory(transport)
