@@ -10,6 +10,8 @@
 #include <arpa/inet.h>
 #include <sys/un.h>
 
+#include "control.h"
+
 static volatile bool running = true;
 
 static void sigint_received(int /*unused*/)
@@ -76,22 +78,31 @@ int main(int argc, const char* argv[])
 
     listen(sockfd, 1);
 
-    int bufsize = atoi(argv[2]);
-    std::vector<char> buffer;
-    buffer.resize(bufsize);
+    control* state = open_control(argv[2]);
+    state->total_bytes = 0;
 
     int fd = accept(sockfd, NULL, NULL);
+    if (fd < 0) {
+        exit(1);
+    }
+
+    std::vector<char> buffer;
 
     char temp;
     std::cin.get(temp);
 
-    ssize_t count = 0;
     while (running) {
-        count += write(fd, &buffer[0], buffer.size());
+        size_t buffer_size = state->transfer_size;
+        if (buffer_size != buffer.size()) {
+            buffer.resize(buffer_size);
+        }
+        state->total_bytes += write(fd, &buffer[0], buffer.size());
     }
 
     // Close the socket so the reader knows no more data is coming
     close(fd);
+
+    close_control(state);
 
     exit(0);
 }
