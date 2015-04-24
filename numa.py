@@ -6,21 +6,32 @@ def _parse_range(line):
     first, last = line.split('-')
     return range(int(first), int(last)+1)
 
-def _parse_values(line):
+def _parse_values(line, delim):
     values = []
-    for section in line.split(','):
-        values.extend(_parse_range(section))
+    for section in line.split(delim):
+        if '-' in section:
+            values.extend(_parse_range(section))
+        else:
+            values.append(int(section))
     return values
 
 def get_nodes():
     with open('/sys/devices/system/node/online') as f:
         line = f.readline().strip()
-        return _parse_values(line)
+        return _parse_values(line, ',')
 
 def get_cpus(node):
     with open('/sys/devices/system/node/node%d/cpulist'%node) as f:
         line = f.readline().strip()
-        return _parse_values(line)
+        return _parse_values(line, ',')
+
+def get_distances(node):
+    with open('/sys/devices/system/node/node%d/distance'%node) as f:
+        line = f.readline().strip()
+        return _parse_values(line, ' ')
+
+def get_distance(node, dest):
+    return get_distances(node)[dest]
 
 class NumaWrapper(object):
     def __init__(self, nodes, distance=None):
