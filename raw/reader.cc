@@ -10,6 +10,8 @@
 #include <arpa/inet.h>
 #include <sys/un.h>
 
+#include "control.h"
+
 int connect_unix(const std::string& address)
 {
     int fd = socket(AF_UNIX, SOCK_STREAM, 0);
@@ -77,12 +79,15 @@ int main(int argc, const char* argv[])
         exit(1);
     }
 
-    int bufsize = atoi(argv[3]);
+    control* state = open_control(argv[3]);
     std::vector<char> buffer;
-    buffer.resize(bufsize);
 
     ssize_t count = 0;
     while (true) {
+        size_t buffer_size = state->transfer_size;
+        if (buffer_size != buffer.size()) {
+            buffer.resize(buffer_size);
+        }
         ssize_t pass = read(fd, &buffer[0], buffer.size());
         if (pass <= 0) {
             if (pass < 0) {
@@ -90,12 +95,10 @@ int main(int argc, const char* argv[])
             }
             break;
         }
-        count += pass;
+        state->total_bytes += pass;
     }
 
     close(fd);
-
-    std::cout << count << std::endl;
 
     return 0;
 }

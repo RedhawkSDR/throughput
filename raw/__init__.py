@@ -10,12 +10,15 @@ from procinfo import StatTracker
 __all__ = ('factory')
 
 class control(object):
-    def __init__(self):
-        self.fd, self.filename = tempfile.mkstemp()
-        os.write(self.fd, '\x00'*12)
-        self.buf = mmap.mmap(self.fd, 12, mmap.MAP_SHARED, mmap.PROT_WRITE)
+    def __init__(self, transfer_size):
+        fd, self.filename = tempfile.mkstemp()
+        os.ftruncate(fd, 12)
+        self.buf = mmap.mmap(fd, 12, mmap.MAP_SHARED, mmap.PROT_WRITE)
+        os.close(fd)
         self.total_bytes = ctypes.c_uint64.from_buffer(self.buf)
+        self.total_bytes.value = 0
         self.transfer_size = ctypes.c_uint32.from_buffer(self.buf, 8)
+        self.transfer_size.value = transfer_size
 
     def __del__(self):
         os.unlink(self.filename)
@@ -23,18 +26,15 @@ class control(object):
 
 class RawThroughputTest(object):
     def __init__(self, transport, transfer_size, numa_policy):
-        self.received = 0
-
-        self.writer_control = control()
-        self.writer_control.transfer_size.value = transfer_size
-
+        self.writer_control = control(transfer_size)
         writer_args = numa_policy(['raw/writer', transport, self.writer_control.filename])
         self.writer_proc = subprocess.Popen(writer_args, stdin=subprocess.PIPE, stdout=subprocess.PIPE)
         self.writer_stats = StatTracker(self.writer_proc.pid)
         writer_addr = self.writer_proc.stdout.readline().rstrip()
 
-        reader_args = numa_policy(['raw/reader', transport, writer_addr, str(transfer_size)])
-        self.reader_proc = subprocess.Popen(reader_args, stdout=subprocess.PIPE)
+        self.reader_control = control(transfer_size)
+        reader_args = numa_policy(['raw/reader', transport, writer_addr, self.reader_control.filename])
+        self.reader_proc = subprocess.Popen(reader_args)
         self.reader_stats = StatTracker(self.reader_proc.pid)
 
     def start(self):
@@ -42,12 +42,15 @@ class RawThroughputTest(object):
 
     def stop(self):
         os.kill(self.writer_proc.pid, signal.SIGINT)
-        self.received = int(self.reader_proc.stdout.readline().rstrip())
 
     def poll(self):
         writer = self.writer_stats.poll()
         reader = self.reader_stats.poll()
         return writer, reader
+
+    @property
+    def received(self):
+        return self.reader_control.total_bytes.value
 
     def terminate(self):
         # Assuming stop() was already called, the reader and writer should have

@@ -79,7 +79,6 @@ int main(int argc, const char* argv[])
     listen(sockfd, 1);
 
     control* state = open_control(argv[2]);
-    state->total_bytes = 0;
 
     int fd = accept(sockfd, NULL, NULL);
     if (fd < 0) {
