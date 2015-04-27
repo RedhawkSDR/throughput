@@ -138,8 +138,9 @@ if __name__ == '__main__':
         test.transfer_size(transfer_size)
         print 'Transfer size', to_binary(transfer_size)
 
+    test.stop()
+    test.terminate()
+
     print 'Average:', to_binary(best_size), to_gbps(best_rate)
     print 'Peak:   ', to_binary(peak_size), to_gbps(peak_rate)
 
-    test.stop()
-    test.terminate()
