@@ -48,7 +48,7 @@ class CorbaTestFactory(object):
             self.orbargs = ['-ORBendPoint', 'giop:unix:']
         else:
             self.orbargs = ['-ORBendPoint', 'giop:tcp::']
-        self.orbrgs += [ '-ORBgiopMaxMsgSize', str(50*1024*1024)]
+        self.orbargs += [ '-ORBgiopMaxMsgSize', str(50*1024*1024)]
         self.orb = omniORB.CORBA.ORB_init()
 
     def create(self, data_format, transfer_size, numa_policy):
