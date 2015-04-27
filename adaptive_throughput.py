@@ -41,6 +41,30 @@ def to_binary(value):
     index = int(math.floor(math.log(value, 1024)))
     return '%d%s' % (value/math.pow(1024, index), suffixes[index])
 
+class AggregateTest(object):
+    def __init__(self, factory, data_format, transfer_size, numa_policy, count):
+        self.tests = [factory.create(data_format, transfer_size, numa_policy.next()) for ii in xrange(count)]
+
+    def start(self):
+        for test in self.tests:
+            test.start()
+
+    def stop(self):
+        for test in self.tests:
+            test.stop()
+
+    def received(self):
+        return sum(test.received for test in self.tests)
+
+    def transfer_size(self, length):
+        for test in self.tests:
+            test.transfer_size(length)
+
+    def terminate(self):
+        for test in self.tests:
+            test.terminate()
+
+
 if __name__ == '__main__':
     transfer_size = 16*1024
     interface = 'raw'
@@ -50,6 +74,7 @@ if __name__ == '__main__':
     poll_time = 0.1
     window_size = 10
     tolerance = 0.1
+    count = 1
 
     opts, args = getopt.getopt(sys.argv[1:], 'w:t:d:', ['transport=', 'interface=', 'numa-distance='])
     for key, value in opts:
@@ -76,7 +101,7 @@ if __name__ == '__main__':
     else:
         raise SystemExit('No interface '+interface)
 
-    test = factory.create(data_format, transfer_size, numa_policy.next())
+    test = AggregateTest(factory, data_format, transfer_size, numa_policy, count)
     test.start()
 
     start = time.time()
@@ -99,7 +124,7 @@ if __name__ == '__main__':
         elapsed = now - last_time
         last_time = now
 
-        current_total = test.received
+        current_total = test.received()
         delta = current_total - last_total
         last_total = current_total
         current_rate = delta / elapsed
