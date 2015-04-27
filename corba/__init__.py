@@ -21,14 +21,18 @@ class CorbaThroughputTest(object):
         self.writer_proc = subprocess.Popen(writer_args, stdout=subprocess.PIPE)
         ior = self.writer_proc.stdout.readline().rstrip()
         self.writer = orb.string_to_object(ior)
+        self.writer.transfer_length(bufsize)
 
-        self.writer.connect(self.reader, format, bufsize)
+        self.writer.connect(self.reader, format)
 
     def start(self):
         self.writer.start()
 
     def stop(self):
         self.writer.stop()
+
+    def transfer_size(self, size):
+        self.writer.transfer_length(size)
 
     @property
     def received(self):

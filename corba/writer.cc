@@ -8,16 +8,21 @@ class Writer : public virtual POA_rawdata::writer {
 public:
     Writer() :
         _thread(0),
-        _running(true)
+        _running(true),
+        _length(1024)
     {
         _thread = new omni_thread(&Writer::thread_start, this);
     }
 
-    void connect(rawdata::reader_ptr reader, const char* format, CORBA::Long length)
+    void connect(rawdata::reader_ptr reader, const char* format)
     {
         _format = format;
-        _length = length;
         _reader = rawdata::reader::_duplicate(reader);
+    }
+
+    void transfer_length(CORBA::Long length)
+    {
+        _length = length;
     }
 
     void start()
@@ -37,18 +42,27 @@ private:
             rawdata::float_sequence data;
             data.length(_length);
             while (_running) {
+                if (data.length() != _length) {
+                    data.length(_length);
+                }
                 _reader->push_float(data);
             }
         } else if (_format == "short") {
             rawdata::short_sequence data;
             data.length(_length);
             while (_running) {
+                if (data.length() != _length) {
+                    data.length(_length);
+                }
                 _reader->push_short(data);
             }
         } else {
             rawdata::octet_sequence data;
             data.length(_length);
             while (_running) {
+                if (data.length() != _length) {
+                    data.length(_length);
+                }
                 _reader->push_octet(data);
             }
         }

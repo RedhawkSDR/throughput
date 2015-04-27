@@ -11,7 +11,8 @@ module rawdata {
     };
 
     interface writer {
-        void connect(in reader target, in string format, in long length);
+        void connect(in reader target, in string format);
+        void transfer_length(in long length);
         void start();
         void stop();
     };
