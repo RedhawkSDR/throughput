@@ -103,8 +103,10 @@ if __name__ == '__main__':
     window_size = 10
     tolerance = 0.1
     count = 1
+    nogui = False
 
-    opts, args = getopt.getopt(sys.argv[1:], 'w:t:d:', ['transport=', 'interface=', 'numa-distance='])
+    opts, args = getopt.getopt(sys.argv[1:], 'w:t:d:', ['transport=', 'interface=', 'numa-distance=',
+                                                        'no-gui'])
     for key, value in opts:
         if key == '-w':
             window_size = int(value)
@@ -118,6 +120,8 @@ if __name__ == '__main__':
             numa_distance = int(value)
         elif key == '--interface':
             interface = value
+        elif key == '--no-gui':
+            nogui = True
 
     numa_policy = numa.NumaPolicy(numa_distance)
 
@@ -145,6 +149,10 @@ if __name__ == '__main__':
     peak_rate = 0.0
     peak_size = 0
 
+    times = []
+    rates = []
+    sizes = [(transfer_size, 0)]
+
     while transfer_size < (64*1024*1024):
         time.sleep(poll_time)
         now = time.time()
@@ -157,11 +165,13 @@ if __name__ == '__main__':
         current_rate = delta / elapsed
         stats.add_sample(current_rate)
 
+        times.append(now-start)
+        rates.append(current_rate)
+
         if current_rate > peak_rate:
             peak_rate = current_rate
             peak_size = transfer_size
 
-        # Adapt transfer rate
         average = stats.average()
         ratio = current_rate / average
         # Get the normalized standard deviation
@@ -178,8 +188,11 @@ if __name__ == '__main__':
         if best_ratio < 0.90:
             break
         stats.reset()
+
+        # Adapt transfer size
         transfer_size *= 2
         test.transfer_size(transfer_size)
+        sizes.append((transfer_size, len(times)))
         print 'Transfer size', to_binary(transfer_size)
 
     test.stop()
@@ -188,3 +201,15 @@ if __name__ == '__main__':
     print 'Average:', to_binary(best_size), to_gbps(best_rate)
     print 'Peak:   ', to_binary(peak_size), to_gbps(peak_rate)
 
+    if nogui:
+        sys.exit(0)
+
+    from matplotlib import pyplot
+
+    pyplot.plot(times, rates)
+    pyplot.xlabel('Time (s)')
+    pyplot.ylabel('Throughput (bps)')
+    for size, index in sizes:
+        # Display vertical line at size change
+        pyplot.axvline(times[index], linestyle='--')
+    pyplot.show()
