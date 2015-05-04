@@ -138,6 +138,7 @@ if __name__ == '__main__':
     test.start()
 
     start = time.time()
+    next = start + poll_time
 
     now = start
     last_time = start
@@ -154,7 +155,10 @@ if __name__ == '__main__':
     sizes = [(transfer_size, 0)]
 
     while transfer_size < (64*1024*1024):
-        time.sleep(poll_time)
+        sleep_time = next - time.time()
+        next += poll_time
+        time.sleep(sleep_time)
+
         now = time.time()
         elapsed = now - last_time
         last_time = now
@@ -209,6 +213,8 @@ if __name__ == '__main__':
     pyplot.plot(times, rates)
     pyplot.xlabel('Time (s)')
     pyplot.ylabel('Throughput (bps)')
+    pyplot.axhline(peak_rate, color='red')
+    pyplot.axhline(best_rate, color='red', linestyle='--')
     for size, index in sizes:
         # Display vertical line at size change
         pyplot.axvline(times[index], linestyle='--')
