@@ -108,11 +108,10 @@ class Statistics(object):
 
 
 class SampleWindow(object):
-    def __init__(self, window_size, tolerance):
+    def __init__(self, window_size):
         self.values = []
         self.window_size = window_size
         self.max_window_size = 2 * self.window_size
-        self.tolerance = tolerance
 
     def add_sample(self, timestamp, value):
         self.values.append(value)
@@ -120,13 +119,13 @@ class SampleWindow(object):
     def set_size(self, size):
         self.values = []
 
-    def is_stable(self):
+    def is_stable(self, tolerance):
         if len(self.values) < self.window_size:
             return False
         elif len(self.values) >= self.max_window_size:
             return True
 
-        return self.variance() <= self.tolerance
+        return self.variance() <= tolerance
 
     def average(self):
         return numpy.average(self.values)
@@ -200,7 +199,7 @@ if __name__ == '__main__':
 
     stats = Statistics()
 
-    window = SampleWindow(window_size, tolerance)
+    window = SampleWindow(window_size)
     stats.add_listener(window)
 
     plotter = TextPlotter(stats)
@@ -241,7 +240,7 @@ if __name__ == '__main__':
 
         # Wait until window is stable (or it's taken long enough that we can
         # assume it will never stabilize) to make decisions
-        if not window.is_stable():
+        if not window.is_stable(tolerance):
             continue
 
         average = window.average()
