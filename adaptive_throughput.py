@@ -3,6 +3,7 @@ import time
 import getopt
 import math
 import numpy
+import itertools
 
 import numa
 import raw
@@ -72,7 +73,7 @@ class Statistics(object):
             self.stats = stats
             stats.add_listener(self)
 
-        def add_sample(self, timestamp, rate):
+        def add_sample(self, sample):
             pass
 
     def __init__(self):
@@ -82,14 +83,11 @@ class Statistics(object):
     def add_listener(self, listener):
         self.listeners.append(listener)
 
-    def add_sample(self, timestamp, value, transfer_size):
-        sample = {'time': timestamp,
-                  'rate': value,
-                  'size': transfer_size}
+    def add_sample(self, sample):
         self.samples.append(sample)
 
         for listener in self.listeners:
-            listener.add_sample(timestamp, value)
+            listener.add_sample(sample)
 
     def get_peak_sample(self, field):
         return max(self.samples, key=lambda s:s[field])
@@ -100,12 +98,8 @@ class Statistics(object):
     def get_field(self, field):
         return [s[field] for s in self.samples]
 
-    def get_sizes(self):
-        sizes = set()
-        for sample in self.samples:
-            if not sample['size'] in sizes:
-                yield sample
-            sizes.add(sample['size'])
+    def get_groups(self, field):
+        return [list(g) for k, g in itertools.groupby(self.samples, lambda s:s[field])]
 
 
 class Averager(Statistics.Listener):
@@ -115,8 +109,8 @@ class Averager(Statistics.Listener):
         self.window_size = window_size
         self.max_window_size = 2 * self.window_size
 
-    def add_sample(self, timestamp, value):
-        self.values.append(value)
+    def add_sample(self, sample):
+        self.values.append(sample['rate'])
 
     def reset(self):
         self.values = []
@@ -144,7 +138,8 @@ class Averager(Statistics.Listener):
 
 
 class TextPlotter(Statistics.Listener):
-    def add_sample(self, timestamp, rate):
+    def add_sample(self, sample):
+        rate = sample['rate']
         peak = self.stats.get_peak_value('rate')
         print '%s %.3f' % (to_gbps(rate), rate/peak)
 
@@ -222,16 +217,24 @@ if __name__ == '__main__':
         delta = current_total - last_total
         last_total = current_total
         current_rate = delta / elapsed
-        stats.add_sample(now-start, current_rate, transfer_size)
+        sample = {'time': now-start,
+                  'rate': current_rate,
+                  'size': transfer_size}
+        stats.add_sample(sample)
 
         # Wait until window is stable (or it's taken long enough that we can
         # assume it will never stabilize) to make decisions
         if not window.is_stable(tolerance):
             continue
 
+        # Add the windowed average throughput to the stats
         current_average = window.average()
+        # NB: Account for the fact that the variance is normalized
         current_dev = window.variance()*current_average
-        average.add_sample(current_dev, current_average, transfer_size)
+        sample = {'rate': current_average,
+                  'size': transfer_size,
+                  'dev':  current_dev}
+        average.add_sample(sample)
 
         # Get the normalized standard deviation
         best_rate = average.get_peak_value('rate')
@@ -268,15 +271,16 @@ if __name__ == '__main__':
     pyplot.axhline(peak['rate'], color='red')
     pyplot.axhline(best_rate, color='red', linestyle='--')
 
-    for sample in stats.get_sizes():
+    for group in stats.get_groups('size'):
         # Display vertical line at size change
+        sample = group[0]
         pyplot.axvline(sample['time'], linestyle='--')
 
     # Create a bar graph of average throughput vs. transfer size
     pyplot.subplot(212)
     sizes = average.get_field('size')
     rates = average.get_field('rate')
-    dev = average.get_field('time')
+    dev = average.get_field('dev')
     pyplot.bar(numpy.arange(len(sizes)), rates, yerr=dev, ecolor='black')
     pyplot.xticks(numpy.arange(len(sizes))+0.35, [to_binary(s) for s in sizes])
     pyplot.xlabel('Transfer size')
