@@ -78,8 +78,6 @@ class Statistics(object):
     def __init__(self):
         self.samples = []
         self.listeners = []
-        self.peak_rate = 0.0
-        self.peak_size = 0
 
     def add_listener(self, listener):
         self.listeners.append(listener)
@@ -93,14 +91,14 @@ class Statistics(object):
         for listener in self.listeners:
             listener.add_sample(timestamp, value)
 
-    def get_peak(self):
-        return max(self.samples, key=lambda s:s['rate'])
+    def get_peak_sample(self, field):
+        return max(self.samples, key=lambda s:s[field])
 
-    def get_times(self):
-        return [s['time'] for s in self.samples]
+    def get_peak_value(self, field):
+        return self.get_peak_sample(field)[field]
 
-    def get_rates(self):
-        return [s['rate'] for s in self.samples]
+    def get_field(self, field):
+        return [s[field] for s in self.samples]
 
     def get_sizes(self):
         sizes = set()
@@ -108,9 +106,6 @@ class Statistics(object):
             if not sample['size'] in sizes:
                 yield sample
             sizes.add(sample['size'])
-
-    def get_samples(self, size):
-        return [s for s in self.samples if s['size'] == size]
 
 
 class Averager(Statistics.Listener):
@@ -150,7 +145,7 @@ class Averager(Statistics.Listener):
 
 class TextPlotter(Statistics.Listener):
     def add_sample(self, timestamp, rate):
-        peak = self.stats.get_peak()['rate']
+        peak = self.stats.get_peak_value('rate')
         print '%s %.3f' % (to_gbps(rate), rate/peak)
 
 
@@ -197,6 +192,8 @@ if __name__ == '__main__':
     window = Averager(stats, window_size)
     plotter = TextPlotter(stats)
 
+    average = Statistics()
+
     test = AggregateTest(factory, data_format, transfer_size, numa_policy, count)
     test.start()
 
@@ -206,9 +203,6 @@ if __name__ == '__main__':
     now = start
     last_time = start
     last_total = 0
-
-    best_rate = 0.0
-    best_size = 0
 
     print 'Transfer size', to_binary(transfer_size)
     while transfer_size < (64*1024*1024):
@@ -235,16 +229,13 @@ if __name__ == '__main__':
         if not window.is_stable(tolerance):
             continue
 
-        average = window.average()
-        if average >= best_rate:
-            best_rate = average
-            best_size = transfer_size
+        current_average = window.average()
+        current_dev = window.variance()*current_average
+        average.add_sample(current_dev, current_average, transfer_size)
 
         # Get the normalized standard deviation
-        if best_rate > 0.0:
-            best_ratio = average/best_rate
-        else:
-            best_ratio = 1.0
+        best_rate = average.get_peak_value('rate')
+        best_ratio = current_average / best_rate
         if best_ratio < 0.90:
             break
 
@@ -257,8 +248,9 @@ if __name__ == '__main__':
     test.stop()
     test.terminate()
 
-    print 'Average:', to_binary(best_size), to_gbps(best_rate)
-    peak = stats.get_peak()
+    peak = average.get_peak_sample('rate')
+    print 'Average:', to_binary(peak['size']), to_gbps(peak['rate'])
+    peak = stats.get_peak_sample('rate')
     print 'Peak:   ', to_binary(peak['size']), to_gbps(peak['rate'])
 
     if nogui:
@@ -268,8 +260,8 @@ if __name__ == '__main__':
 
     # Create a line plot of instantaneous throughput vs. time
     pyplot.subplot(211)
-    times = stats.get_times()
-    rates = stats.get_rates()
+    times = stats.get_field('time')
+    rates = stats.get_field('rate')
     pyplot.plot(times, rates)
     pyplot.xlabel('Time (s)')
     pyplot.ylabel('Throughput (bps)')
@@ -282,10 +274,10 @@ if __name__ == '__main__':
 
     # Create a bar graph of average throughput vs. transfer size
     pyplot.subplot(212)
-    sizes = [s['size'] for s in stats.get_sizes()]
-    averages = [numpy.average([s['rate'] for s in stats.get_samples(size)]) for size in sizes]
-    dev = [numpy.std([s['rate'] for s in stats.get_samples(size)]) for size in sizes]
-    pyplot.bar(numpy.arange(len(sizes)), averages, yerr=dev, ecolor='black')
+    sizes = average.get_field('size')
+    rates = average.get_field('rate')
+    dev = average.get_field('time')
+    pyplot.bar(numpy.arange(len(sizes)), rates, yerr=dev, ecolor='black')
     pyplot.xticks(numpy.arange(len(sizes))+0.35, [to_binary(s) for s in sizes])
     pyplot.xlabel('Transfer size')
     pyplot.ylabel('Throughput (bps)')
