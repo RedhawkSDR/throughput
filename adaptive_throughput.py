@@ -106,6 +106,9 @@ class Statistics(object):
                 yield sample
             sizes.add(sample['size'])
 
+    def get_samples(self, size):
+        return [s for s in self.samples if s['size'] == size]
+
 
 class SampleWindow(object):
     def __init__(self, window_size):
@@ -273,6 +276,8 @@ if __name__ == '__main__':
 
     from matplotlib import pyplot
 
+    # Create a line plot of instantaneous throughput vs. time
+    pyplot.subplot(211)
     times = stats.get_times()
     rates = stats.get_rates()
     pyplot.plot(times, rates)
@@ -280,10 +285,19 @@ if __name__ == '__main__':
     pyplot.ylabel('Throughput (bps)')
     pyplot.axhline(peak['rate'], color='red')
     pyplot.axhline(best_rate, color='red', linestyle='--')
-    ypos = pyplot.ylim()[0]*1.05
+
     for sample in stats.get_sizes():
         # Display vertical line at size change
-        xval = sample['time']
-        pyplot.axvline(xval, linestyle='--')
-        pyplot.annotate(to_binary(sample['size']), xy=(xval,ypos), color='blue', size='x-small')
+        pyplot.axvline(sample['time'], linestyle='--')
+
+    # Create a bar graph of average throughput vs. transfer size
+    pyplot.subplot(212)
+    sizes = [s['size'] for s in stats.get_sizes()]
+    averages = [numpy.average([s['rate'] for s in stats.get_samples(size)]) for size in sizes]
+    dev = [numpy.std([s['rate'] for s in stats.get_samples(size)]) for size in sizes]
+    pyplot.bar(numpy.arange(len(sizes)), averages, yerr=dev, ecolor='black')
+    pyplot.xticks(numpy.arange(len(sizes))+0.35, [to_binary(s) for s in sizes])
+    pyplot.xlabel('Transfer size')
+    pyplot.ylabel('Throughput (bps)')
+
     pyplot.show()
