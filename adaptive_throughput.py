@@ -89,11 +89,11 @@ class Statistics(object):
         for listener in self.listeners:
             listener.add_sample(**sample)
 
-    def get_peak_sample(self, field):
+    def get_max_sample(self, field):
         return max(self.samples, key=lambda s:s[field])
 
-    def get_peak_value(self, field):
-        return self.get_peak_sample(field)[field]
+    def get_max_value(self, field):
+        return self.get_max_sample(field)[field]
 
     def get_field(self, field):
         return [s[field] for s in self.samples]
@@ -139,7 +139,7 @@ class Averager(Statistics.Listener):
 
 class TextPlotter(Statistics.Listener):
     def add_sample(self, rate, size, **kw):
-        peak = self.stats.get_peak_value('rate')
+        peak = self.stats.get_max_value('rate')
         print '%s %s %.3f' % (to_binary(size), to_gbps(rate), rate/peak)
 
 
@@ -235,7 +235,7 @@ if __name__ == '__main__':
         average.add_sample(sample)
 
         # Get the normalized standard deviation
-        best_rate = average.get_peak_value('rate')
+        best_rate = average.get_max_value('rate')
         best_ratio = current_average / best_rate
         if best_ratio < 0.90:
             break
@@ -248,9 +248,9 @@ if __name__ == '__main__':
     test.stop()
     test.terminate()
 
-    peak = average.get_peak_sample('rate')
+    peak = average.get_max_sample('rate')
     print 'Average:', to_binary(peak['size']), to_gbps(peak['rate'])
-    peak = stats.get_peak_sample('rate')
+    peak = stats.get_max_sample('rate')
     print 'Peak:   ', to_binary(peak['size']), to_gbps(peak['rate'])
 
     if nogui:
