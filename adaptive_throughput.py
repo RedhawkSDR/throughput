@@ -66,6 +66,18 @@ class AggregateTest(object):
 
 
 class Statistics(object):
+
+    class Listener(object):
+        def __init__(self, stats):
+            self.stats = stats
+            stats.add_listener(self)
+
+        def add_sample(self, timestamp, rate):
+            pass
+
+        def set_size(self, transfer_size):
+            pass
+
     def __init__(self):
         self.samples = []
         self.listeners = []
@@ -110,8 +122,9 @@ class Statistics(object):
         return [s for s in self.samples if s['size'] == size]
 
 
-class SampleWindow(object):
-    def __init__(self, window_size):
+class Averager(Statistics.Listener):
+    def __init__(self, stats, window_size):
+        Statistics.Listener.__init__(self, stats)
         self.values = []
         self.window_size = window_size
         self.max_window_size = 2 * self.window_size
@@ -119,7 +132,7 @@ class SampleWindow(object):
     def add_sample(self, timestamp, value):
         self.values.append(value)
 
-    def set_size(self, size):
+    def reset(self):
         self.values = []
 
     def is_stable(self, tolerance):
@@ -130,29 +143,21 @@ class SampleWindow(object):
 
         return self.variance() <= tolerance
 
+    def get_data(self):
+        return self.values
+
     def average(self):
-        return numpy.average(self.values)
+        return numpy.average(self.get_data())
 
     def variance(self):
-        return numpy.std(self.values)/self.average()
+        data = self.get_data()
+        return numpy.std(data)/numpy.average(data)
 
     def length(self):
         return len(self.values)
 
 
-class StatsListener(object):
-    def __init__(self, stats):
-        self.stats = stats
-        stats.add_listener(self)
-
-    def add_sample(self, timestamp, rate):
-        pass
-
-    def set_size(self, transfer_size):
-        pass
-
-
-class TextPlotter(StatsListener):
+class TextPlotter(Statistics.Listener):
     def add_sample(self, timestamp, rate):
         peak = self.stats.get_peak()['rate']
         print '%s %.3f' % (to_gbps(rate), rate/peak)
@@ -201,10 +206,7 @@ if __name__ == '__main__':
         raise SystemExit('No interface '+interface)
 
     stats = Statistics()
-
-    window = SampleWindow(window_size)
-    stats.add_listener(window)
-
+    window = Averager(stats, window_size)
     plotter = TextPlotter(stats)
 
     stats.set_size(transfer_size)
@@ -263,6 +265,7 @@ if __name__ == '__main__':
         transfer_size *= 2
         test.transfer_size(transfer_size)
         stats.set_size(transfer_size)
+        window.reset()
 
     test.stop()
     test.terminate()
