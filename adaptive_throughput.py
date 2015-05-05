@@ -65,6 +65,48 @@ class AggregateTest(object):
             test.terminate()
 
 
+class Statistics(object):
+    def __init__(self):
+        self.samples = []
+        self.listeners = []
+        self.peak_rate = 0.0
+        self.peak_size = 0
+        self.transfer_size = 0
+
+    def add_listener(self, listener):
+        self.listeners.append(listener)
+
+    def add_sample(self, timestamp, value):
+        sample = {'time': timestamp,
+                  'rate': value,
+                  'size': self.transfer_size}
+        self.samples.append(sample)
+
+        for listener in self.listeners:
+            listener.add_sample(timestamp, value)
+
+    def set_size(self, size):
+        self.transfer_size = size
+        for listener in self.listeners:
+            listener.set_size(size)
+
+    def get_peak(self):
+        return max(self.samples, key=lambda s:s['rate'])
+
+    def get_times(self):
+        return [s['time'] for s in self.samples]
+
+    def get_rates(self):
+        return [s['rate'] for s in self.samples]
+
+    def get_sizes(self):
+        sizes = set()
+        for sample in self.samples:
+            if not sample['size'] in sizes:
+                yield sample
+            sizes.add(sample['size'])
+
+
 class SampleWindow(object):
     def __init__(self, window_size, tolerance):
         self.values = []
@@ -72,8 +114,11 @@ class SampleWindow(object):
         self.max_window_size = 2 * self.window_size
         self.tolerance = tolerance
 
-    def add_sample(self, value):
+    def add_sample(self, timestamp, value):
         self.values.append(value)
+
+    def set_size(self, size):
+        self.values = []
 
     def is_stable(self):
         if len(self.values) < self.window_size:
@@ -89,8 +134,29 @@ class SampleWindow(object):
     def variance(self):
         return numpy.std(self.values)/self.average()
 
-    def reset(self):
-        self.values = []
+    def length(self):
+        return len(self.values)
+
+
+class StatsListener(object):
+    def __init__(self, stats):
+        self.stats = stats
+        stats.add_listener(self)
+
+    def add_sample(self, timestamp, rate):
+        pass
+
+    def set_size(self, transfer_size):
+        pass
+
+
+class TextPlotter(StatsListener):
+    def add_sample(self, timestamp, rate):
+        peak = self.stats.get_peak()['rate']
+        print '%s %.3f' % (to_gbps(rate), rate/peak)
+
+    def set_size(self, transfer_size):
+        print 'Transfer size', to_binary(transfer_size)
 
 
 if __name__ == '__main__':
@@ -132,7 +198,14 @@ if __name__ == '__main__':
     else:
         raise SystemExit('No interface '+interface)
 
-    stats = SampleWindow(window_size, tolerance)
+    stats = Statistics()
+
+    window = SampleWindow(window_size, tolerance)
+    stats.add_listener(window)
+
+    plotter = TextPlotter(stats)
+
+    stats.set_size(transfer_size)
 
     test = AggregateTest(factory, data_format, transfer_size, numa_policy, count)
     test.start()
@@ -147,75 +220,71 @@ if __name__ == '__main__':
     best_rate = 0.0
     best_size = 0
 
-    peak_rate = 0.0
-    peak_size = 0
-
-    times = []
-    rates = []
-    sizes = [(transfer_size, 0)]
-
     while transfer_size < (64*1024*1024):
+        # Wait until next scheduled poll time
         sleep_time = next - time.time()
         next += poll_time
-        time.sleep(sleep_time)
+        if sleep_time > 0.0:
+            time.sleep(sleep_time)
 
+        # Measure time elapsed since last sample
         now = time.time()
         elapsed = now - last_time
         last_time = now
 
+        # Calculate average throughput over the sample period
         current_total = test.received()
         delta = current_total - last_total
         last_total = current_total
         current_rate = delta / elapsed
-        stats.add_sample(current_rate)
+        stats.add_sample(now-start, current_rate)
 
-        times.append(now-start)
-        rates.append(current_rate)
+        # Wait until window is stable (or it's taken long enough that we can
+        # assume it will never stabilize) to make decisions
+        if not window.is_stable():
+            continue
 
-        if current_rate > peak_rate:
-            peak_rate = current_rate
-            peak_size = transfer_size
+        average = window.average()
+        if average >= best_rate:
+            best_rate = average
+            best_size = transfer_size
 
-        average = stats.average()
-        ratio = current_rate / average
         # Get the normalized standard deviation
         if best_rate > 0.0:
             best_ratio = average/best_rate
         else:
             best_ratio = 1.0
-        print to_gbps(current_rate), to_gbps(average), '%.2f' % best_ratio, '%.3f' % stats.variance()
-        if not stats.is_stable():
-            continue
-        elif average >= best_rate:
-            best_rate = average
-            best_size = transfer_size
         if best_ratio < 0.90:
             break
-        stats.reset()
 
         # Adapt transfer size
         transfer_size *= 2
         test.transfer_size(transfer_size)
-        sizes.append((transfer_size, len(times)))
-        print 'Transfer size', to_binary(transfer_size)
+        stats.set_size(transfer_size)
 
     test.stop()
     test.terminate()
 
     print 'Average:', to_binary(best_size), to_gbps(best_rate)
-    print 'Peak:   ', to_binary(peak_size), to_gbps(peak_rate)
+    peak = stats.get_peak()
+    print 'Peak:   ', to_binary(peak['size']), to_gbps(peak['rate'])
 
     if nogui:
         sys.exit(0)
 
     from matplotlib import pyplot
 
+    times = stats.get_times()
+    rates = stats.get_rates()
     pyplot.plot(times, rates)
     pyplot.xlabel('Time (s)')
     pyplot.ylabel('Throughput (bps)')
-    pyplot.axhline(peak_rate, color='red')
+    pyplot.axhline(peak['rate'], color='red')
     pyplot.axhline(best_rate, color='red', linestyle='--')
-    for size, index in sizes:
+    ypos = pyplot.ylim()[0]*1.05
+    for sample in stats.get_sizes():
         # Display vertical line at size change
-        pyplot.axvline(times[index], linestyle='--')
+        xval = sample['time']
+        pyplot.axvline(xval, linestyle='--')
+        pyplot.annotate(to_binary(sample['size']), xy=(xval,ypos), color='blue', size='x-small')
     pyplot.show()
