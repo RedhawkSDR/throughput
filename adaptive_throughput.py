@@ -143,44 +143,10 @@ class TextPlotter(Statistics.Listener):
         print '%s %s %.3f' % (to_binary(size), to_gbps(rate), rate/peak)
 
 
-if __name__ == '__main__':
+def test_transfer_size(test):
+    test.start()
+
     transfer_size = 16*1024
-    interface = 'raw'
-    transport = 'unix'
-    numa_distance = None
-    data_format = 'octet'
-    poll_time = 0.1
-    window_size = 10
-    tolerance = 0.1
-    count = 1
-    nogui = False
-
-    opts, args = getopt.getopt(sys.argv[1:], 'w:t:d:', ['transport=', 'interface=', 'numa-distance=',
-                                                        'no-gui'])
-    for key, value in opts:
-        if key == '-w':
-            window_size = int(value)
-        elif key == '-t':
-            poll_time = float(value)
-        elif key == '-d':
-            tolerance = float(value)
-        elif key == '--transport':
-            transport = value
-        elif key == '--numa-distance':
-            numa_distance = int(value)
-        elif key == '--interface':
-            interface = value
-        elif key == '--no-gui':
-            nogui = True
-
-    numa_policy = numa.NumaPolicy(numa_distance)
-
-    if interface == 'raw':
-        factory = raw.factory(transport)
-    elif interface == 'corba':
-        factory = corba.factory(transport)
-    else:
-        raise SystemExit('No interface '+interface)
 
     stats = Statistics()
     window = Averager(stats, window_size)
@@ -188,7 +154,6 @@ if __name__ == '__main__':
 
     average = Statistics()
 
-    test = AggregateTest(factory, data_format, transfer_size, numa_policy, count)
     test.start()
 
     start = time.time()
@@ -246,10 +211,57 @@ if __name__ == '__main__':
         window.reset()
 
     test.stop()
-    test.terminate()
+    
+    return stats, average
 
-    peak = average.get_max_sample('rate')
-    print 'Average:', to_binary(peak['size']), to_gbps(peak['rate'])
+
+if __name__ == '__main__':
+    transfer_size = 16*1024
+    interface = 'raw'
+    transport = 'unix'
+    numa_distance = None
+    data_format = 'octet'
+    poll_time = 0.1
+    window_size = 10
+    tolerance = 0.1
+    count = 1
+    nogui = False
+
+    opts, args = getopt.getopt(sys.argv[1:], 'w:t:d:', ['transport=', 'interface=', 'numa-distance=',
+                                                        'no-gui'])
+    for key, value in opts:
+        if key == '-w':
+            window_size = int(value)
+        elif key == '-t':
+            poll_time = float(value)
+        elif key == '-d':
+            tolerance = float(value)
+        elif key == '--transport':
+            transport = value
+        elif key == '--numa-distance':
+            numa_distance = int(value)
+        elif key == '--interface':
+            interface = value
+        elif key == '--no-gui':
+            nogui = True
+
+    numa_policy = numa.NumaPolicy(numa_distance)
+
+    if interface == 'raw':
+        factory = raw.factory(transport)
+    elif interface == 'corba':
+        factory = corba.factory(transport)
+    else:
+        raise SystemExit('No interface '+interface)
+
+    test = AggregateTest(factory, data_format, transfer_size, numa_policy, count)
+    try:
+        stats, average = test_transfer_size(test)
+    finally:
+        test.terminate()
+
+    best = average.get_max_sample('rate')
+    print 'Average:', to_binary(best['size']), to_gbps(best['rate'])
     peak = stats.get_max_sample('rate')
     print 'Peak:   ', to_binary(peak['size']), to_gbps(peak['rate'])
 
@@ -266,7 +278,7 @@ if __name__ == '__main__':
     pyplot.xlabel('Time (s)')
     pyplot.ylabel('Throughput (bps)')
     pyplot.axhline(peak['rate'], color='red')
-    pyplot.axhline(best_rate, color='red', linestyle='--')
+    pyplot.axhline(best['rate'], color='red', linestyle='--')
 
     for group in stats.get_groups('size'):
         # Display vertical line at size change
