@@ -75,32 +75,23 @@ class Statistics(object):
         def add_sample(self, timestamp, rate):
             pass
 
-        def set_size(self, transfer_size):
-            pass
-
     def __init__(self):
         self.samples = []
         self.listeners = []
         self.peak_rate = 0.0
         self.peak_size = 0
-        self.transfer_size = 0
 
     def add_listener(self, listener):
         self.listeners.append(listener)
 
-    def add_sample(self, timestamp, value):
+    def add_sample(self, timestamp, value, transfer_size):
         sample = {'time': timestamp,
                   'rate': value,
-                  'size': self.transfer_size}
+                  'size': transfer_size}
         self.samples.append(sample)
 
         for listener in self.listeners:
             listener.add_sample(timestamp, value)
-
-    def set_size(self, size):
-        self.transfer_size = size
-        for listener in self.listeners:
-            listener.set_size(size)
 
     def get_peak(self):
         return max(self.samples, key=lambda s:s['rate'])
@@ -162,9 +153,6 @@ class TextPlotter(Statistics.Listener):
         peak = self.stats.get_peak()['rate']
         print '%s %.3f' % (to_gbps(rate), rate/peak)
 
-    def set_size(self, transfer_size):
-        print 'Transfer size', to_binary(transfer_size)
-
 
 if __name__ == '__main__':
     transfer_size = 16*1024
@@ -209,8 +197,6 @@ if __name__ == '__main__':
     window = Averager(stats, window_size)
     plotter = TextPlotter(stats)
 
-    stats.set_size(transfer_size)
-
     test = AggregateTest(factory, data_format, transfer_size, numa_policy, count)
     test.start()
 
@@ -224,6 +210,7 @@ if __name__ == '__main__':
     best_rate = 0.0
     best_size = 0
 
+    print 'Transfer size', to_binary(transfer_size)
     while transfer_size < (64*1024*1024):
         # Wait until next scheduled poll time
         sleep_time = next - time.time()
@@ -241,7 +228,7 @@ if __name__ == '__main__':
         delta = current_total - last_total
         last_total = current_total
         current_rate = delta / elapsed
-        stats.add_sample(now-start, current_rate)
+        stats.add_sample(now-start, current_rate, transfer_size)
 
         # Wait until window is stable (or it's taken long enough that we can
         # assume it will never stabilize) to make decisions
@@ -263,8 +250,8 @@ if __name__ == '__main__':
 
         # Adapt transfer size
         transfer_size *= 2
+        print 'Transfer size', to_binary(transfer_size)
         test.transfer_size(transfer_size)
-        stats.set_size(transfer_size)
         window.reset()
 
     test.stop()
