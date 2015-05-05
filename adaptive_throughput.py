@@ -144,8 +144,6 @@ class TextPlotter(Statistics.Listener):
 
 
 def test_transfer_size(test):
-    test.start()
-
     transfer_size = 16*1024
 
     stats = Statistics()
@@ -245,25 +243,27 @@ if __name__ == '__main__':
         elif key == '--no-gui':
             nogui = True
 
-    numa_policy = numa.NumaPolicy(numa_distance)
+    results = {}
+    for interface in ('raw', 'corba'):
+        if interface == 'raw':
+            factory = raw.factory(transport)
+        elif interface == 'corba':
+            factory = corba.factory(transport)
 
-    if interface == 'raw':
-        factory = raw.factory(transport)
-    elif interface == 'corba':
-        factory = corba.factory(transport)
-    else:
-        raise SystemExit('No interface '+interface)
+        numa_policy = numa.NumaPolicy(numa_distance)
 
-    test = AggregateTest(factory, data_format, transfer_size, numa_policy, count)
-    try:
-        stats, average = test_transfer_size(test)
-    finally:
-        test.terminate()
+        test = AggregateTest(factory, data_format, transfer_size, numa_policy, count)
+        try:
+            stats, average = test_transfer_size(test)
+        finally:
+            test.terminate()
 
-    best = average.get_max_sample('rate')
-    print 'Average:', to_binary(best['size']), to_gbps(best['rate'])
-    peak = stats.get_max_sample('rate')
-    print 'Peak:   ', to_binary(peak['size']), to_gbps(peak['rate'])
+        results[interface] = {'all': stats, 'average':average}
+
+        best = average.get_max_sample('rate')
+        print 'Average:', to_binary(best['size']), to_gbps(best['rate'])
+        peak = stats.get_max_sample('rate')
+        print 'Peak:   ', to_binary(peak['size']), to_gbps(peak['rate'])
 
     if nogui:
         sys.exit(0)
@@ -272,27 +272,38 @@ if __name__ == '__main__':
 
     # Create a line plot of instantaneous throughput vs. time
     pyplot.subplot(211)
-    times = stats.get_field('time')
-    rates = stats.get_field('rate')
-    pyplot.plot(times, rates)
     pyplot.xlabel('Time (s)')
     pyplot.ylabel('Throughput (bps)')
-    pyplot.axhline(peak['rate'], color='red')
-    pyplot.axhline(best['rate'], color='red', linestyle='--')
+    for name, values in results.iteritems():
+        stats = values['all']
+        average = values['average']
+        times = stats.get_field('time')
+        rates = stats.get_field('rate')
+        line, = pyplot.plot(times, rates, label=name)
+        best = average.get_max_sample('rate')
+        peak = stats.get_max_sample('rate')
+        pyplot.axhline(peak['rate'], color=line.get_color())
+        pyplot.axhline(best['rate'], color=line.get_color(), linestyle='--')
 
-    for group in stats.get_groups('size'):
-        # Display vertical line at size change
-        sample = group[0]
-        pyplot.axvline(sample['time'], linestyle='--')
+        for group in stats.get_groups('size'):
+            # Display vertical line at size change
+            sample = group[0]
+            pyplot.axvline(sample['time'], color=line.get_color(), linestyle='--')
 
     # Create a bar graph of average throughput vs. transfer size
     pyplot.subplot(212)
-    sizes = average.get_field('size')
-    rates = average.get_field('rate')
-    dev = average.get_field('dev')
-    pyplot.bar(numpy.arange(len(sizes)), rates, yerr=dev, ecolor='black')
-    pyplot.xticks(numpy.arange(len(sizes))+0.35, [to_binary(s) for s in sizes])
     pyplot.xlabel('Transfer size')
     pyplot.ylabel('Throughput (bps)')
+    offset = 0.0
+    width = 0.5
+    colors = itertools.cycle(('blue', 'red'))
+    for name, values in results.iteritems():
+        average = values['average']
+        sizes = average.get_field('size')
+        rates = average.get_field('rate')
+        dev = average.get_field('dev')
+        pyplot.bar(numpy.arange(len(sizes))+offset, rates, color=colors.next(), width=width, yerr=dev, ecolor='black')
+        offset += width
+        pyplot.xticks(numpy.arange(len(sizes))+0.5, [to_binary(s) for s in sizes])
 
     pyplot.show()
