@@ -73,7 +73,7 @@ class Statistics(object):
             self.stats = stats
             stats.add_listener(self)
 
-        def add_sample(self, sample):
+        def add_sample(self, **sample):
             pass
 
     def __init__(self):
@@ -87,7 +87,7 @@ class Statistics(object):
         self.samples.append(sample)
 
         for listener in self.listeners:
-            listener.add_sample(sample)
+            listener.add_sample(**sample)
 
     def get_peak_sample(self, field):
         return max(self.samples, key=lambda s:s[field])
@@ -109,8 +109,8 @@ class Averager(Statistics.Listener):
         self.window_size = window_size
         self.max_window_size = 2 * self.window_size
 
-    def add_sample(self, sample):
-        self.values.append(sample['rate'])
+    def add_sample(self, rate, **kw):
+        self.values.append(rate)
 
     def reset(self):
         self.values = []
@@ -138,10 +138,9 @@ class Averager(Statistics.Listener):
 
 
 class TextPlotter(Statistics.Listener):
-    def add_sample(self, sample):
-        rate = sample['rate']
+    def add_sample(self, rate, size, **kw):
         peak = self.stats.get_peak_value('rate')
-        print '%s %.3f' % (to_gbps(rate), rate/peak)
+        print '%s %s %.3f' % (to_binary(size), to_gbps(rate), rate/peak)
 
 
 if __name__ == '__main__':
@@ -199,7 +198,6 @@ if __name__ == '__main__':
     last_time = start
     last_total = 0
 
-    print 'Transfer size', to_binary(transfer_size)
     while transfer_size < (64*1024*1024):
         # Wait until next scheduled poll time
         sleep_time = next - time.time()
@@ -244,7 +242,6 @@ if __name__ == '__main__':
 
         # Adapt transfer size
         transfer_size *= 2
-        print 'Transfer size', to_binary(transfer_size)
         test.transfer_size(transfer_size)
         window.reset()
 
