@@ -4,11 +4,14 @@
 #include <cstdlib>
 #include <cstdio>
 #include <cstring>
+#include <deque>
 
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include <sys/un.h>
+
+#include <omnithread.h>
 
 #include "control.h"
 
@@ -68,6 +71,51 @@ int connect(const std::string& protocol, const std::string& address)
     }
 }
 
+class Reader {
+public:
+    Reader() :
+        _thread(0),
+        _mutex(),
+        _cond(&_mutex)
+    {
+        _thread = new omni_thread(&Reader::thread_start, this);
+        _thread->start();
+    }
+
+    void queue(char* data)
+    {
+        _mutex.lock();
+        _queue.push_back(data);
+        _cond.signal();
+        _mutex.unlock();
+    }
+
+private:
+    void thread_run()
+    {
+        _mutex.lock();
+        while (true) {
+            while (_queue.empty()) {
+                _cond.wait();
+            }
+            delete[] _queue.front();
+            _queue.pop_front();
+        }
+        _mutex.unlock();
+    }
+
+    static void thread_start(void* arg)
+    {
+        Reader* reader = (Reader*)arg;
+        reader->thread_run();
+    }
+
+    omni_thread* _thread;
+    omni_mutex _mutex;
+    omni_condition _cond;
+    std::deque<char*> _queue;
+};
+
 int main(int argc, const char* argv[])
 {
     if (argc < 4) {
@@ -79,22 +127,23 @@ int main(int argc, const char* argv[])
         exit(1);
     }
 
+    Reader reader;
+
     control* state = open_control(argv[3]);
-    std::vector<char> buffer;
 
     ssize_t count = 0;
     while (true) {
         size_t buffer_size = state->transfer_size;
-        if (buffer_size != buffer.size()) {
-            buffer.resize(buffer_size);
-        }
-        ssize_t pass = read(fd, &buffer[0], buffer.size());
+        char* buffer = new char[buffer_size];
+        ssize_t pass = read(fd, &buffer[0], buffer_size);
         if (pass <= 0) {
+            delete[] buffer;
             if (pass < 0) {
                 perror("read");
             }
             break;
         }
+        reader.queue(buffer);
         state->total_bytes += pass;
     }
 
