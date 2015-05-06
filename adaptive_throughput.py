@@ -258,7 +258,8 @@ if __name__ == '__main__':
         bar_plot.set_xlabel('Transfer size')
         bar_plot.set_ylabel('Throughput (bps)')
         sizes = [to_binary((2**x)*1024) for x in xrange(4, 17)]
-        pyplot.xticks(numpy.arange(len(sizes))+0.5, sizes)
+        bar_plot.set_xticks(numpy.arange(len(sizes))+0.5)
+        bar_plot.set_xticklabels(sizes)
         pyplot.show(False)
 
         width = 0.5
