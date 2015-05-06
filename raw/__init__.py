@@ -5,8 +5,6 @@ import mmap
 import tempfile
 import ctypes
 
-from procinfo import StatTracker
-
 __all__ = ('factory')
 
 class control(object):
@@ -29,13 +27,11 @@ class RawThroughputTest(object):
         self.writer_control = control(transfer_size)
         writer_args = numa_policy(['raw/writer', transport, self.writer_control.filename])
         self.writer_proc = subprocess.Popen(writer_args, stdin=subprocess.PIPE, stdout=subprocess.PIPE)
-        self.writer_stats = StatTracker(self.writer_proc.pid)
         writer_addr = self.writer_proc.stdout.readline().rstrip()
 
         self.reader_control = control(transfer_size)
         reader_args = numa_policy(['raw/reader', transport, writer_addr, self.reader_control.filename])
         self.reader_proc = subprocess.Popen(reader_args)
-        self.reader_stats = StatTracker(self.reader_proc.pid)
 
     def start(self):
         self.writer_proc.stdin.write('\n')
@@ -43,10 +39,11 @@ class RawThroughputTest(object):
     def stop(self):
         os.kill(self.writer_proc.pid, signal.SIGINT)
 
-    def poll(self):
-        writer = self.writer_stats.poll()
-        reader = self.reader_stats.poll()
-        return writer, reader
+    def get_reader(self):
+        return self.reader_proc
+
+    def get_writer(self):
+        return self.writer_proc
 
     def transfer_size(self, size):
         self.writer_control.transfer_size.value = size

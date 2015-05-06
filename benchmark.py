@@ -6,6 +6,8 @@ import numpy
 import itertools
 
 import numa
+from procinfo import StatTracker
+
 import raw
 import corba
 
@@ -45,6 +47,8 @@ def to_binary(value):
 class AggregateTest(object):
     def __init__(self, factory, data_format, transfer_size, numa_policy, count):
         self.tests = [factory.create(data_format, transfer_size, numa_policy.next()) for ii in xrange(count)]
+        self.reader_stats = [StatTracker(t.get_reader().pid) for t in self.tests]
+        self.writer_stats = [StatTracker(t.get_writer().pid) for t in self.tests]
 
     def start(self):
         for test in self.tests:
@@ -53,6 +57,12 @@ class AggregateTest(object):
     def stop(self):
         for test in self.tests:
             test.stop()
+
+    def get_reader_stats(self):
+        return [s.poll() for s in self.reader_stats]
+
+    def get_writer_stats(self):
+        return [s.poll() for s in self.writer_stats]
 
     def received(self):
         return sum(test.received for test in self.tests)
@@ -138,9 +148,9 @@ class Averager(Statistics.Listener):
 
 
 class TextPlotter(Statistics.Listener):
-    def add_sample(self, rate, size, **kw):
+    def add_sample(self, rate, size, read_cpu, write_cpu, **kw):
         peak = self.stats.get_max_value('rate')
-        print '%s %s %.3f' % (to_binary(size), to_gbps(rate), rate/peak)
+        print '%s %s %.3f %.1f %.1f' % (to_binary(size), to_gbps(rate), rate/peak, read_cpu, write_cpu)
 
 
 class TextDisplay(object):
@@ -161,14 +171,23 @@ class PlotDisplay(object):
         self.figure = pyplot.figure()
 
         # Create a line plot of instantaneous throughput vs. time
-        self.line_plot = self.figure.add_subplot(211)
+        self.line_plot = self.figure.add_subplot(221)
         self.line_plot.set_xlabel('Time (s)')
         self.line_plot.set_ylabel('Throughput (bps)')
 
         # Create a bar graph of average throughput vs. transfer size
-        self.bar_plot = self.figure.add_subplot(212)
+        self.bar_plot = self.figure.add_subplot(223)
         self.bar_plot.set_xlabel('Transfer size')
         self.bar_plot.set_ylabel('Throughput (bps)')
+
+        self.reader_cpu = self.figure.add_subplot(224)
+        self.reader_cpu.set_xlabel('Time (s)')
+        self.reader_cpu.set_ylabel('Reader CPU (%)')
+
+        self.writer_cpu = self.figure.add_subplot(222)
+        self.writer_cpu.set_xlabel('Time (s)')
+        self.writer_cpu.set_ylabel('Writer CPU (%)')
+
         pyplot.show(False)
 
         self.width = 0.5
@@ -195,6 +214,13 @@ class PlotDisplay(object):
         self.bar_plot.set_xticks(numpy.arange(len(sizes))+0.5)
         self.bar_plot.set_xticklabels([to_binary(s) for s in sizes])
         self.offset += self.width
+
+        read_cpu = stats.get_field('read_cpu')
+        self.reader_cpu.plot(times, read_cpu, label=name)
+
+        write_cpu = stats.get_field('write_cpu')
+        self.writer_cpu.plot(times, write_cpu, label=name)
+
         pyplot.draw()
 
     def show(self):
@@ -236,9 +262,18 @@ def test_transfer_size(test):
         delta = current_total - last_total
         last_total = current_total
         current_rate = delta / elapsed
+
+        # Aggregate CPU usage
+        reader = test.get_reader_stats()
+        writer = test.get_writer_stats()
+        read_cpu = sum(r['cpu%'] for r in reader)
+        write_cpu = sum(r['cpu%'] for r in writer)
+
         sample = {'time': now-start,
                   'rate': current_rate,
-                  'size': transfer_size}
+                  'size': transfer_size,
+                  'read_cpu': read_cpu,
+                  'write_cpu': write_cpu}
         stats.add_sample(sample)
 
         # Wait until window is stable (or it's taken long enough that we can

@@ -31,6 +31,12 @@ class CorbaThroughputTest(object):
     def stop(self):
         self.writer.stop()
 
+    def get_reader(self):
+        return self.reader_proc
+
+    def get_writer(self):
+        return self.writer_proc
+
     def transfer_size(self, size):
         self.writer.transfer_length(size)
 
