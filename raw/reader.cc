@@ -116,6 +116,23 @@ private:
     std::deque<char*> _queue;
 };
 
+size_t read_buffer(int fd, char* buffer, size_t count)
+{
+    size_t bytes_read = 0;
+    while (bytes_read < count) {
+        ssize_t pass = read(fd, &buffer[bytes_read], count-bytes_read);
+        if (pass <= 0) {
+            if (pass < 0) {
+                perror("read");
+            }
+            break;
+        }
+        bytes_read += pass;
+    }
+
+    return bytes_read;
+}
+
 int main(int argc, const char* argv[])
 {
     if (argc < 4) {
@@ -133,17 +150,17 @@ int main(int argc, const char* argv[])
 
     ssize_t count = 0;
     while (true) {
-        size_t buffer_size = state->transfer_size;
-        char* buffer = new char[buffer_size];
-        ssize_t pass = read(fd, &buffer[0], buffer_size);
-        if (pass <= 0) {
-            delete[] buffer;
-            if (pass < 0) {
-                perror("read");
-            }
+        size_t buffer_size = 0;
+        if (read(fd, &buffer_size, sizeof(buffer_size)) < sizeof(buffer_size)) {
             break;
         }
+
+        char* buffer = new char[buffer_size];
+        size_t pass = read_buffer(fd, buffer, buffer_size);
         reader.queue(buffer);
+        if (pass == 0) {
+            break;
+        }
         state->total_bytes += pass;
     }
 

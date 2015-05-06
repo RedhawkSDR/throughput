@@ -95,7 +95,9 @@ int main(int argc, const char* argv[])
         if (buffer_size != buffer.size()) {
             buffer.resize(buffer_size);
         }
-        state->total_bytes += write(fd, &buffer[0], buffer.size());
+        write(fd, &buffer_size, sizeof(buffer_size));
+        ssize_t pass = write(fd, &buffer[0], buffer.size());
+        state->total_bytes += pass;
     }
 
     // Close the socket so the reader knows no more data is coming
