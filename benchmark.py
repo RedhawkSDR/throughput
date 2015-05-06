@@ -169,9 +169,6 @@ class PlotDisplay(object):
         self.bar_plot = self.figure.add_subplot(212)
         self.bar_plot.set_xlabel('Transfer size')
         self.bar_plot.set_ylabel('Throughput (bps)')
-        sizes = [to_binary((2**x)*1024) for x in xrange(4, 17)]
-        self.bar_plot.set_xticks(numpy.arange(len(sizes))+0.5)
-        self.bar_plot.set_xticklabels(sizes)
         pyplot.show(False)
 
         self.width = 0.5
@@ -195,6 +192,8 @@ class PlotDisplay(object):
         rates = average.get_field('rate')
         dev = average.get_field('dev')
         self.bar_plot.bar(numpy.arange(len(sizes))+self.offset, rates, color=line.get_color(), width=self.width, yerr=dev, ecolor='black')
+        self.bar_plot.set_xticks(numpy.arange(len(sizes))+0.5)
+        self.bar_plot.set_xticklabels([to_binary(s) for s in sizes])
         self.offset += self.width
         pyplot.draw()
 
