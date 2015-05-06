@@ -243,7 +243,27 @@ if __name__ == '__main__':
         elif key == '--no-gui':
             nogui = True
 
-    results = {}
+    if not nogui:
+        from matplotlib import pyplot
+
+        figure = pyplot.figure()
+
+        # Create a line plot of instantaneous throughput vs. time
+        line_plot = figure.add_subplot(211)
+        line_plot.set_xlabel('Time (s)')
+        line_plot.set_ylabel('Throughput (bps)')
+
+        # Create a bar graph of average throughput vs. transfer size
+        bar_plot = figure.add_subplot(212)
+        bar_plot.set_xlabel('Transfer size')
+        bar_plot.set_ylabel('Throughput (bps)')
+        sizes = [to_binary((2**x)*1024) for x in xrange(4, 17)]
+        pyplot.xticks(numpy.arange(len(sizes))+0.5, sizes)
+        pyplot.show(False)
+
+        width = 0.5
+        offset = 0.0
+
     for interface in ('raw', 'corba'):
         if interface == 'raw':
             factory = raw.factory(transport)
@@ -258,52 +278,29 @@ if __name__ == '__main__':
         finally:
             test.terminate()
 
-        results[interface] = {'all': stats, 'average':average}
-
         best = average.get_max_sample('rate')
         print 'Average:', to_binary(best['size']), to_gbps(best['rate'])
         peak = stats.get_max_sample('rate')
         print 'Peak:   ', to_binary(peak['size']), to_gbps(peak['rate'])
 
-    if nogui:
-        sys.exit(0)
+        if not nogui:
+            times = stats.get_field('time')
+            rates = stats.get_field('rate')
+            line, = line_plot.plot(times, rates, label=interface)
+            line_plot.axhline(peak['rate'], color=line.get_color())
+            line_plot.axhline(best['rate'], color=line.get_color(), linestyle='--')
 
-    from matplotlib import pyplot
+            for group in stats.get_groups('size'):
+                # Display vertical line at size change
+                sample = group[0]
+                line_plot.axvline(sample['time'], color=line.get_color(), linestyle='--')
 
-    # Create a line plot of instantaneous throughput vs. time
-    pyplot.subplot(211)
-    pyplot.xlabel('Time (s)')
-    pyplot.ylabel('Throughput (bps)')
-    for name, values in results.iteritems():
-        stats = values['all']
-        average = values['average']
-        times = stats.get_field('time')
-        rates = stats.get_field('rate')
-        line, = pyplot.plot(times, rates, label=name)
-        best = average.get_max_sample('rate')
-        peak = stats.get_max_sample('rate')
-        pyplot.axhline(peak['rate'], color=line.get_color())
-        pyplot.axhline(best['rate'], color=line.get_color(), linestyle='--')
+            sizes = average.get_field('size')
+            rates = average.get_field('rate')
+            dev = average.get_field('dev')
+            bar_plot.bar(numpy.arange(len(sizes))+offset, rates, color=line.get_color(), width=width, yerr=dev, ecolor='black')
+            offset += width
+            pyplot.draw()
 
-        for group in stats.get_groups('size'):
-            # Display vertical line at size change
-            sample = group[0]
-            pyplot.axvline(sample['time'], color=line.get_color(), linestyle='--')
-
-    # Create a bar graph of average throughput vs. transfer size
-    pyplot.subplot(212)
-    pyplot.xlabel('Transfer size')
-    pyplot.ylabel('Throughput (bps)')
-    offset = 0.0
-    width = 0.5
-    colors = itertools.cycle(('blue', 'red'))
-    for name, values in results.iteritems():
-        average = values['average']
-        sizes = average.get_field('size')
-        rates = average.get_field('rate')
-        dev = average.get_field('dev')
-        pyplot.bar(numpy.arange(len(sizes))+offset, rates, color=colors.next(), width=width, yerr=dev, ecolor='black')
-        offset += width
-        pyplot.xticks(numpy.arange(len(sizes))+0.5, [to_binary(s) for s in sizes])
-
-    pyplot.show()
+    if not nogui:
+        pyplot.show()
