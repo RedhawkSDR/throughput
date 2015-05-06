@@ -197,12 +197,6 @@ def test_transfer_size(test):
                   'dev':  current_dev}
         average.add_sample(sample)
 
-        # Get the normalized standard deviation
-        best_rate = average.get_max_value('rate')
-        best_ratio = current_average / best_rate
-        if best_ratio < 0.90:
-            break
-
         # Adapt transfer size
         transfer_size *= 2
         test.transfer_size(transfer_size)
