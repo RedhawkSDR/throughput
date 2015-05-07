@@ -1,5 +1,5 @@
 LDFLAGS = $(shell pkg-config --libs omniORB4)
-CPPFLAGS = $(shell pkg-config --cflags omniORB4)
+CPPFLAGS = $(shell pkg-config --cflags omniORB4) -I ../common
 CXXFLAGS = -g -O2
 
 all: reader writer rawdata/__init__.py

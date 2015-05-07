@@ -13,6 +13,8 @@
 
 #include <omnithread.h>
 
+#include <threaded_deleter.h>
+
 #include "control.h"
 
 int connect_unix(const std::string& address)
@@ -71,51 +73,6 @@ int connect(const std::string& protocol, const std::string& address)
     }
 }
 
-class Reader {
-public:
-    Reader() :
-        _thread(0),
-        _mutex(),
-        _cond(&_mutex)
-    {
-        _thread = new omni_thread(&Reader::thread_start, this);
-        _thread->start();
-    }
-
-    void queue(char* data)
-    {
-        _mutex.lock();
-        _queue.push_back(data);
-        _cond.signal();
-        _mutex.unlock();
-    }
-
-private:
-    void thread_run()
-    {
-        _mutex.lock();
-        while (true) {
-            while (_queue.empty()) {
-                _cond.wait();
-            }
-            delete[] _queue.front();
-            _queue.pop_front();
-        }
-        _mutex.unlock();
-    }
-
-    static void thread_start(void* arg)
-    {
-        Reader* reader = (Reader*)arg;
-        reader->thread_run();
-    }
-
-    omni_thread* _thread;
-    omni_mutex _mutex;
-    omni_condition _cond;
-    std::deque<char*> _queue;
-};
-
 size_t read_buffer(int fd, char* buffer, size_t count)
 {
     size_t bytes_read = 0;
@@ -144,7 +101,7 @@ int main(int argc, const char* argv[])
         exit(1);
     }
 
-    Reader reader;
+    threaded_deleter deleter;
 
     control* state = open_control(argv[3]);
 
@@ -157,7 +114,7 @@ int main(int argc, const char* argv[])
 
         char* buffer = new char[buffer_size];
         size_t pass = read_buffer(fd, buffer, buffer_size);
-        reader.queue(buffer);
+        deleter.deallocate_array(buffer);
         if (pass == 0) {
             break;
         }

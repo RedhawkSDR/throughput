@@ -3,36 +3,33 @@
 
 #include <omniORB4/CORBA.h>
 
+#include <threaded_deleter.h>
+
 #include "rawdata.hh"
 
 class Reader : public virtual POA_rawdata::reader {
 public:
     Reader() :
-        _received(0),
-        _thread(0),
-        _mutex(),
-        _cond(&_mutex)
+        _received(0)
     {
-        _thread = new omni_thread(&Reader::thread_start, this);
-        _thread->start();
     }
 
     void push_octet(const rawdata::octet_sequence& data)
     {
         _received += data.length();
-        queue_buffer(data);
+        _deleter.deallocate_array(const_cast<rawdata::octet_sequence&>(data).get_buffer(1));
     }
 
     void push_short(const rawdata::short_sequence& data)
     {
         _received += data.length() * sizeof(CORBA::Short);
-        queue_buffer(data);
+        _deleter.deallocate_array(const_cast<rawdata::short_sequence&>(data).get_buffer(1));
     }
 
     void push_float(const rawdata::float_sequence& data)
     {
         _received += data.length() * sizeof(CORBA::Float);
-        queue_buffer(data);
+        _deleter.deallocate_array(const_cast<rawdata::float_sequence&>(data).get_buffer(1));
     }
 
     CORBA::LongLong received()
@@ -41,61 +38,8 @@ public:
     }
 
 private:
-    void thread_run()
-    {
-        _mutex.lock();
-        while (true) {
-            while (_queue.empty()) {
-                _cond.wait();
-            }
-            delete _queue.front();
-            _queue.pop_front();
-        }
-        _mutex.unlock();
-    }
-
-    static void thread_start(void* arg)
-    {
-        Reader* reader = (Reader*)arg;
-        reader->thread_run();
-    }
-
+    threaded_deleter _deleter;
     size_t _received;
-    omni_thread* _thread;
-
-    struct deletable {
-        virtual ~deletable() { }
-    };
-
-    template <class T>
-    struct sequence_deleter : public deletable {
-        sequence_deleter(T& src)
-        {
-            const CORBA::ULong maximum = src.maximum();
-            const CORBA::ULong length = src.length();
-            _seq.replace(maximum, length, src.get_buffer(1), 1);
-
-        }
-
-        virtual ~sequence_deleter()
-        {
-        }
-
-        T _seq;
-    };
-
-    template <class T>
-    void queue_buffer(const T& src)
-    {
-        _mutex.lock();
-        _queue.push_back(new sequence_deleter<T>(const_cast<T&>(src)));
-        _cond.signal();
-        _mutex.unlock();
-    }
-
-    omni_mutex _mutex;
-    omni_condition _cond;
-    std::deque<deletable*> _queue;
 };
 
 int main (int argc, char* argv[])
