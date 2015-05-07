@@ -1,10 +1,5 @@
-import sys
-import os
-import time
 import subprocess
-import getopt
 import omniORB
-import itertools
 
 import rawdata
 
