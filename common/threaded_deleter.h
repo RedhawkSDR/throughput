@@ -22,6 +22,7 @@ public:
         _running = false;
         _cond.signal();
         _mutex.unlock();
+        _thread->join(NULL);
     }
 
     template <class T>
@@ -93,10 +94,11 @@ private:
         _mutex.unlock();
     }
 
-    static void thread_start(void* arg)
+    static void* thread_start(void* arg)
     {
         threaded_deleter* reader = (threaded_deleter*)arg;
         reader->thread_run();
+        return 0;
     }
 
     omni_thread* _thread;
