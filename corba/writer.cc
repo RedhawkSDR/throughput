@@ -100,4 +100,6 @@ int main (int argc, char* argv[])
     orb->run();
 
     orb->shutdown(true);
+
+    orb->destroy();
 }
