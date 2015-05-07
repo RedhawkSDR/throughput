@@ -267,13 +267,17 @@ def test_transfer_size(test):
         reader = test.get_reader_stats()
         writer = test.get_writer_stats()
         read_cpu = sum(r['cpu%'] for r in reader)
-        write_cpu = sum(r['cpu%'] for r in writer)
+        read_mem = sum(r['rss'] for r in reader)
+        write_cpu = sum(w['cpu%'] for w in writer)
+        write_mem = sum(w['rss'] for w in writer)
 
         sample = {'time': now-start,
                   'rate': current_rate,
                   'size': transfer_size,
                   'read_cpu': read_cpu,
-                  'write_cpu': write_cpu}
+                  'write_cpu': write_cpu,
+                  'read_rss': read_mem,
+                  'write_rss': write_mem}
         stats.add_sample(sample)
 
         # Wait until window is stable (or it's taken long enough that we can
@@ -335,6 +339,16 @@ if __name__ == '__main__':
     else:
         display = PlotDisplay()
 
+    csv_fields = [
+        ('time', 'time(s)'),
+        ('rate', 'rate(Bps)'),
+        ('size', 'transfer size(B)'),
+        ('write_cpu', 'writer cpu(%)'),
+        ('write_rss', 'writer rss'),
+        ('read_cpu', 'reader cpu(%)'),
+        ('read_rss', 'reader rss')
+    ]
+
     for interface in ('raw', 'corba'):
         if interface == 'raw':
             factory = raw.factory(transport)
@@ -353,8 +367,8 @@ if __name__ == '__main__':
 
         filename = interface+'.csv'
         with open(filename, 'w') as f:
-            print >>f, 'time(s),rate(Bps),transfer size(B),writer cpu(%),reader cpu(%)'
+            print >>f, ','.join(title for name, title in csv_fields)
             for s in stats.samples:
-                print >>f, '%f,%f,%d,%f,%f' % (s['time'], s['rate'], s['size'], s['write_cpu'], s['read_cpu'])
+                print >>f, ','.join(str(s[name]) for name, title in csv_fields)
 
     display.show()
