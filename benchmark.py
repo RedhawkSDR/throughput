@@ -351,4 +351,10 @@ if __name__ == '__main__':
 
         display.add_results(interface, stats, average)
 
+        filename = interface+'.csv'
+        with open(filename, 'w') as f:
+            print >>f, 'time(s),rate(Bps),transfer size(B),writer cpu(%),reader cpu(%)'
+            for s in stats.samples:
+                print >>f, '%f,%f,%d,%f,%f' % (s['time'], s['rate'], s['size'], s['write_cpu'], s['read_cpu'])
+
     display.show()
