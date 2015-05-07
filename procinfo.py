@@ -84,12 +84,21 @@ class StatTracker(object):
         else:
             utime = 0.0
             stime = 0.0
-        status['utime%'] = utime
-        status['stime%'] = stime
-        status['cpu%'] = utime + stime
+
+        d_majflt = status['majflt'] - self._lastStatus['majflt']
+        d_minflt = status['minflt'] - self._lastStatus['minflt']
+
+        results = {
+            'utime%': utime,
+            'stime%': stime,
+            'cpu%': utime+stime,
+            'rss' : status['rss'],
+            'majflt': d_majflt,
+            'minflt': d_minflt
+        }
 
         # Update last measurements
         self._lastStatus = status
         self._lastCputime = cputime
 
-        return status
+        return results

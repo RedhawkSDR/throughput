@@ -266,18 +266,19 @@ def test_transfer_size(test):
         # Aggregate CPU usage
         reader = test.get_reader_stats()
         writer = test.get_writer_stats()
-        read_cpu = sum(r['cpu%'] for r in reader)
-        read_mem = sum(r['rss'] for r in reader)
-        write_cpu = sum(w['cpu%'] for w in writer)
-        write_mem = sum(w['rss'] for w in writer)
 
         sample = {'time': now-start,
                   'rate': current_rate,
                   'size': transfer_size,
-                  'read_cpu': read_cpu,
-                  'write_cpu': write_cpu,
-                  'read_rss': read_mem,
-                  'write_rss': write_mem}
+                  'write_cpu': sum(w['cpu%'] for w in writer),
+                  'write_rss': sum(w['rss'] for w in writer),
+                  'write_majflt': sum(w['majflt'] for w in writer),
+                  'write_minflt': sum(w['minflt'] for w in writer),
+                  'read_cpu': sum(r['cpu%'] for r in reader),
+                  'read_rss': sum(r['rss'] for r in reader),
+                  'read_majflt': sum(r['majflt'] for r in reader),
+                  'read_minflt': sum(r['minflt'] for r in reader)
+                  }
         stats.add_sample(sample)
 
         # Wait until window is stable (or it's taken long enough that we can
@@ -345,8 +346,12 @@ if __name__ == '__main__':
         ('size', 'transfer size(B)'),
         ('write_cpu', 'writer cpu(%)'),
         ('write_rss', 'writer rss'),
+        ('write_majflt', 'writer major faults'),
+        ('write_minflt', 'writer minor faults'),
         ('read_cpu', 'reader cpu(%)'),
-        ('read_rss', 'reader rss')
+        ('read_rss', 'reader rss'),
+        ('read_majflt', 'reader major faults'),
+        ('read_minflt', 'reader minor faults')
     ]
 
     for interface in ('raw', 'corba'):
