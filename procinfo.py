@@ -94,7 +94,8 @@ class StatTracker(object):
             'cpu%': utime+stime,
             'rss' : status['rss'],
             'majflt': d_majflt,
-            'minflt': d_minflt
+            'minflt': d_minflt,
+            'threads': status['num_threads']
         }
 
         # Update last measurements
