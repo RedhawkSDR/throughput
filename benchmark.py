@@ -274,10 +274,12 @@ def test_transfer_size(test):
                   'write_rss': sum(w['rss'] for w in writer),
                   'write_majflt': sum(w['majflt'] for w in writer),
                   'write_minflt': sum(w['minflt'] for w in writer),
+                  'write_threads': sum(w['threads'] for w in writer),
                   'read_cpu': sum(r['cpu%'] for r in reader),
                   'read_rss': sum(r['rss'] for r in reader),
                   'read_majflt': sum(r['majflt'] for r in reader),
-                  'read_minflt': sum(r['minflt'] for r in reader)
+                  'read_minflt': sum(r['minflt'] for r in reader),
+                  'read_threads': sum(r['threads'] for r in reader)
                   }
         stats.add_sample(sample)
 
@@ -348,10 +350,12 @@ if __name__ == '__main__':
         ('write_rss', 'writer rss'),
         ('write_majflt', 'writer major faults'),
         ('write_minflt', 'writer minor faults'),
+        ('write_threads', 'writer threads'),
         ('read_cpu', 'reader cpu(%)'),
         ('read_rss', 'reader rss'),
         ('read_majflt', 'reader major faults'),
-        ('read_minflt', 'reader minor faults')
+        ('read_minflt', 'reader minor faults'),
+        ('read_threads', 'reader threads')
     ]
 
     for interface in ('raw', 'corba'):
