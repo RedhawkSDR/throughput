@@ -10,6 +10,7 @@ from procinfo import StatTracker
 
 import raw
 import corba
+import rhbulkio as bulkio
 
 def samples_to_int(value):
     scale = 1
@@ -190,7 +191,7 @@ class PlotDisplay(object):
 
         pyplot.show(False)
 
-        self.width = 0.5
+        self.width = 1.0/3.0
         self.offset = 0.0
 
     def add_results(self, name, stats, average):
@@ -330,8 +331,6 @@ if __name__ == '__main__':
             transport = value
         elif key == '--numa-distance':
             numa_distance = int(value)
-        elif key == '--interface':
-            interface = value
         elif key == '--no-gui':
             nogui = True
 
@@ -356,11 +355,13 @@ if __name__ == '__main__':
         ('read_threads', 'reader threads')
     ]
 
-    for interface in ('raw', 'corba'):
+    for interface in ('raw', 'corba', 'bulkio'):
         if interface == 'raw':
             factory = raw.factory(transport)
         elif interface == 'corba':
             factory = corba.factory(transport)
+        elif interface == 'bulkio':
+            factory = bulkio.factory(transport)
 
         numa_policy = numa.NumaPolicy(numa_distance)
 
