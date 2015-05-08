@@ -309,7 +309,6 @@ def test_transfer_size(test):
 
 if __name__ == '__main__':
     transfer_size = 16*1024
-    interface = 'raw'
     transport = 'unix'
     numa_distance = None
     data_format = 'octet'
@@ -319,8 +318,7 @@ if __name__ == '__main__':
     count = 1
     nogui = False
 
-    opts, args = getopt.getopt(sys.argv[1:], 'w:t:d:', ['transport=', 'interface=', 'numa-distance=',
-                                                        'no-gui'])
+    opts, args = getopt.getopt(sys.argv[1:], 'w:t:d:', ['transport=', 'numa-distance=', 'no-gui'])
     for key, value in opts:
         if key == '-w':
             window_size = int(value)
