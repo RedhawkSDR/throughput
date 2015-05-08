@@ -40,10 +40,10 @@ class RawThroughputTest(object):
         os.kill(self.writer_proc.pid, signal.SIGINT)
 
     def get_reader(self):
-        return self.reader_proc
+        return self.reader_proc.pid
 
     def get_writer(self):
-        return self.writer_proc
+        return self.writer_proc.pid
 
     def transfer_size(self, size):
         self.writer_control.transfer_size.value = size

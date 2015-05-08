@@ -47,8 +47,8 @@ def to_binary(value):
 class AggregateTest(object):
     def __init__(self, factory, data_format, transfer_size, numa_policy, count):
         self.tests = [factory.create(data_format, transfer_size, numa_policy.next()) for ii in xrange(count)]
-        self.reader_stats = [StatTracker(t.get_reader().pid) for t in self.tests]
-        self.writer_stats = [StatTracker(t.get_writer().pid) for t in self.tests]
+        self.reader_stats = [StatTracker(t.get_reader()) for t in self.tests]
+        self.writer_stats = [StatTracker(t.get_writer()) for t in self.tests]
 
     def start(self):
         for test in self.tests:
