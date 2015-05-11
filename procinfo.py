@@ -18,7 +18,7 @@ class ProcFile(object):
     def poll(self):
         current = self.scan()
         last = self.__last
-        self._last = current
+        self.__last = current
         return self.format(current, last)
 
     def format(self, current, last):
