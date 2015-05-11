@@ -1,97 +1,116 @@
-import time
-import commands
+__all__ = ('CpuInfo', 'ProcessInfo')
 
-FIELDS = [
-    ('pid', int),
-    ('comm', str),
-    ('state', str),
-    ('ppid', int),
-    ('pgrp', int),
-    ('session', int),
-    ('tty_nr', str),
-    ('tpgid', str),
-    ('flags', str),
-    ('minflt', int),
-    ('cminflt', int),
-    ('majflt', int),
-    ('cmajflt', int),
-    ('utime', int),
-    ('stime', int),
-    ('cutime', int),
-    ('cstime', int),
-    ('priority', int),
-    ('nice', int),
-    ('num_threads', int),
-    ('itrealvalue', str),
-    ('starttime', int),
-    ('vsize', int),
-    ('rss', int),
-    ('rsslim', int),
-    ('startcode', int),
-    ('endcode', int),
-    ('startstack', int),
-    ('kstkesp', str),
-    ('kstkeip', str),
-    ('signal', int),
-    ('blocked', int),
-    ('sigignore', str),
-    ('sigcatch', str),
-    ('wchan', str),
-    ('nswap', str),
-    ('cnswap', str),
-    ('exit_signal', str),
-    ('processor', int),
-    ('rt_priority', int),
-    ('policy', str),
-    ('delayacct_blkio_ticks', str),
-    ('guest_time', str),
-    ('cguest_time', str)
-]
+class CpuInfo(object):
+    FIELDS = [
+        ('user', int),
+        ('nice', int),
+        ('system', int),
+        ('idle', int),
+        ('iowait', int),
+        ('irq', int),
+        ('softirq', int),
+        ('steal', int),
+        ('guest', int)
+        ]
 
-NUM_CPUS = int(commands.getoutput('nproc'))
+    def __init__(self):
+        self._last = self._scan()  
 
-__all__ = ('StatTracker',)
+    def _scan(self):
+        with open('/proc/stat', 'r') as f:
+            # Skip the first field, which is just "cpu"
+            status = f.readline().strip().split()[1:]
+        results = {}
+        for (name, format), value in zip(self.FIELDS, status):
+            results[name] = format(value)
+        return results
 
-class StatTracker(object):
+    def poll(self):
+        stats = self._scan()
+
+        results = {}
+        for (name, _) in self.FIELDS:
+            results[name] = stats[name] - self._last[name]
+
+        self._last = stats
+
+        return results
+
+
+class ProcessInfo(object):
+    FIELDS = [
+        ('pid', int),
+        ('comm', str),
+        ('state', str),
+        ('ppid', int),
+        ('pgrp', int),
+        ('session', int),
+        ('tty_nr', str),
+        ('tpgid', str),
+        ('flags', str),
+        ('minflt', int),
+        ('cminflt', int),
+        ('majflt', int),
+        ('cmajflt', int),
+        ('utime', int),
+        ('stime', int),
+        ('cutime', int),
+        ('cstime', int),
+        ('priority', int),
+        ('nice', int),
+        ('num_threads', int),
+        ('itrealvalue', str),
+        ('starttime', int),
+        ('vsize', int),
+        ('rss', int),
+        ('rsslim', int),
+        ('startcode', int),
+        ('endcode', int),
+        ('startstack', int),
+        ('kstkesp', str),
+        ('kstkeip', str),
+        ('signal', int),
+        ('blocked', int),
+        ('sigignore', str),
+        ('sigcatch', str),
+        ('wchan', str),
+        ('nswap', str),
+        ('cnswap', str),
+        ('exit_signal', str),
+        ('processor', int),
+        ('rt_priority', int),
+        ('policy', str),
+        ('delayacct_blkio_ticks', str),
+        ('guest_time', str),
+        ('cguest_time', str)
+    ]
+
     def __init__(self, pid):
         self._pid = pid
         self._statfile = '/proc/%d/stat' % (pid,)
-
-        self._lastStatus, self._lastCputime = self._scan()
+        self._last = self._scan()
 
     def _scan(self):
         with open(self._statfile, 'r') as f:
             status = f.readline().strip().split()
-        with open('/proc/stat', 'r') as f:
-            cputime = sum(int(x) for x in f.readline().strip().split()[1:])
-        if len(status) > len(FIELDS):
-            status = status[:len(FIELDS)]
         results = {}
-        for (name, format), value in zip(FIELDS[:len(status)], status):
+        for (name, format), value in zip(self.FIELDS, status):
             results[name] = format(value)
-        return results, cputime
+        return results
 
     def poll(self):
-        status, cputime = self._scan()
+        status = self._scan()
 
         # Calculate CPU usage
-        d_utime = status['utime'] - self._lastStatus['utime']
-        d_stime = status['stime'] - self._lastStatus['stime']
-        d_cputime = cputime - self._lastCputime
-        if d_cputime > 0:
-            utime = 100.0 * d_utime / d_cputime * NUM_CPUS
-            stime = 100.0 * d_stime / d_cputime * NUM_CPUS
-        else:
-            utime = 0.0
-            stime = 0.0
-
-        d_majflt = status['majflt'] - self._lastStatus['majflt']
-        d_minflt = status['minflt'] - self._lastStatus['minflt']
+        d_utime = status['utime'] - self._last['utime']
+        d_stime = status['stime'] - self._last['stime']
+        d_majflt = status['majflt'] - self._last['majflt']
+        d_minflt = status['minflt'] - self._last['minflt']
 
         results = {
-            'utime%': utime,
-            'stime%': stime,
-            'cpu%': utime+stime,
+            'utime': d_utime,
+            'stime': d_stime,
+            'cpu': d_utime+d_stime,
             'rss' : status['rss'],
             'majflt': d_majflt,
             'minflt': d_minflt,
@@ -99,7 +118,6 @@ class StatTracker(object):
         }
 
         # Update last measurements
-        self._lastStatus = status
-        self._lastCputime = cputime
+        self._last = status
 
         return results

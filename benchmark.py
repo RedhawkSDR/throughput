@@ -6,7 +6,7 @@ import numpy
 import itertools
 
 import numa
-from procinfo import StatTracker
+from procinfo import CpuInfo, ProcessInfo
 
 import raw
 import corba
@@ -48,8 +48,8 @@ def to_binary(value):
 class AggregateTest(object):
     def __init__(self, factory, data_format, transfer_size, numa_policy, count):
         self.tests = [factory.create(data_format, transfer_size, numa_policy.next()) for ii in xrange(count)]
-        self.reader_stats = [StatTracker(t.get_reader()) for t in self.tests]
-        self.writer_stats = [StatTracker(t.get_writer()) for t in self.tests]
+        self.reader_stats = [ProcessInfo(t.get_reader()) for t in self.tests]
+        self.writer_stats = [ProcessInfo(t.get_writer()) for t in self.tests]
 
     def start(self):
         for test in self.tests:
@@ -237,6 +237,9 @@ def test_transfer_size(test):
 
     average = Statistics()
 
+    num_cpus = sum(len(numa.get_cpus(n)) for n in numa.get_nodes())
+    cpu_info = CpuInfo()
+
     test.start()
 
     start = time.time()
@@ -268,19 +271,25 @@ def test_transfer_size(test):
         reader = test.get_reader_stats()
         writer = test.get_writer_stats()
 
+        system = cpu_info.poll()
+        sys_cpu = num_cpus * 100.0 / sum(system.values())
+
         sample = {'time': now-start,
                   'rate': current_rate,
                   'size': transfer_size,
-                  'write_cpu': sum(w['cpu%'] for w in writer),
+                  'write_cpu': sum(w['cpu'] for w in writer) * sys_cpu,
                   'write_rss': sum(w['rss'] for w in writer),
                   'write_majflt': sum(w['majflt'] for w in writer),
                   'write_minflt': sum(w['minflt'] for w in writer),
                   'write_threads': sum(w['threads'] for w in writer),
-                  'read_cpu': sum(r['cpu%'] for r in reader),
+                  'read_cpu': sum(r['cpu'] for r in reader) * sys_cpu,
                   'read_rss': sum(r['rss'] for r in reader),
                   'read_majflt': sum(r['majflt'] for r in reader),
                   'read_minflt': sum(r['minflt'] for r in reader),
-                  'read_threads': sum(r['threads'] for r in reader)
+                  'read_threads': sum(r['threads'] for r in reader),
+                  'cpu_user': system['user'] * sys_cpu,
+                  'cpu_system': system['system'] * sys_cpu,
+                  'cpu_idle': system['idle'] * sys_cpu,
                   }
         stats.add_sample(sample)
 
@@ -352,7 +361,10 @@ if __name__ == '__main__':
         ('read_rss', 'reader rss'),
         ('read_majflt', 'reader major faults'),
         ('read_minflt', 'reader minor faults'),
-        ('read_threads', 'reader threads')
+        ('read_threads', 'reader threads'),
+        ('cpu_user', 'user CPU(%)'),
+        ('cpu_system', 'system CPU(%)'),
+        ('cpu_idle', 'idle CPU(%)'),
     ]
 
     for interface in ('raw', 'corba', 'bulkio'):
