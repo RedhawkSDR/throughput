@@ -1,7 +1,33 @@
+import itertools
+
 __all__ = ('CpuInfo', 'ProcessInfo')
 
-class CpuInfo(object):
+class ProcFile(object):
+    def __init__(self, filename):
+        self.__filename = filename
+        self.__last = self.scan()
+
+    def scan(self):
+        with open(self.__filename) as f:
+            fields = f.readline().strip().split()
+        result = {}
+        for (name, format), value in itertools.izip(self.FIELDS, fields):
+            result[name] = format(value)
+        return result
+
+    def poll(self):
+        current = self.scan()
+        last = self.__last
+        self._last = current
+        return self.format(current, last)
+
+    def format(self, current, last):
+        return current
+
+
+class CpuInfo(ProcFile):
     FIELDS = [
+        ('name', str),
         ('user', int),
         ('nice', int),
         ('system', int),
@@ -11,33 +37,22 @@ class CpuInfo(object):
         ('softirq', int),
         ('steal', int),
         ('guest', int)
-        ]
+    ]
 
     def __init__(self):
-        self._last = self._scan()  
+        ProcFile.__init__(self, '/proc/stat')
 
-    def _scan(self):
-        with open('/proc/stat', 'r') as f:
-            # Skip the first field, which is just "cpu"
-            status = f.readline().strip().split()[1:]
-        results = {}
-        for (name, format), value in zip(self.FIELDS, status):
-            results[name] = format(value)
-        return results
-
-    def poll(self):
-        stats = self._scan()
-
+    def format(self, current, last):
         results = {}
         for (name, _) in self.FIELDS:
-            results[name] = stats[name] - self._last[name]
-
-        self._last = stats
-
+            # Skip first column (cpu name)
+            if name == 'name':
+                continue
+            results[name] = current[name] - last[name]
         return results
 
 
-class ProcessInfo(object):
+class ProcessInfo(ProcFile):
     FIELDS = [
         ('pid', int),
         ('comm', str),
@@ -86,38 +101,24 @@ class ProcessInfo(object):
     ]
 
     def __init__(self, pid):
-        self._pid = pid
-        self._statfile = '/proc/%d/stat' % (pid,)
-        self._last = self._scan()
+        filename = '/proc/%d/stat' % (pid,)
+        ProcFile.__init__(self, filename)
 
-    def _scan(self):
-        with open(self._statfile, 'r') as f:
-            status = f.readline().strip().split()
-        results = {}
-        for (name, format), value in zip(self.FIELDS, status):
-            results[name] = format(value)
-        return results
-
-    def poll(self):
-        status = self._scan()
-
-        # Calculate CPU usage
-        d_utime = status['utime'] - self._last['utime']
-        d_stime = status['stime'] - self._last['stime']
-        d_majflt = status['majflt'] - self._last['majflt']
-        d_minflt = status['minflt'] - self._last['minflt']
+    def format(self, current, last):
+        # Calculate deltas
+        d_utime = current['utime'] - last['utime']
+        d_stime = current['stime'] - last['stime']
+        d_majflt = current['majflt'] - last['majflt']
+        d_minflt = current['minflt'] - last['minflt']
 
         results = {
             'utime': d_utime,
             'stime': d_stime,
             'cpu': d_utime+d_stime,
-            'rss' : status['rss'],
+            'rss' : current['rss'],
             'majflt': d_majflt,
             'minflt': d_minflt,
-            'threads': status['num_threads']
+            'threads': current['num_threads']
         }
-
-        # Update last measurements
-        self._last = status
 
         return results
