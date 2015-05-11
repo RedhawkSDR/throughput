@@ -1,0 +1,13 @@
+*.m4
+.deps/
+autom4te.cache/
+Makefile
+Makefile.in
+config.*
+configure
+depcomp
+install-sh
+ltmain.sh
+missing
+reader/cpp/reader
+writer/cpp/writer
