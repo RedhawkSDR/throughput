@@ -9,5 +9,5 @@ depcomp
 install-sh
 ltmain.sh
 missing
-reader/cpp/reader
-writer/cpp/writer
+rhbulkio/reader/cpp/reader
+rhbulkio/writer/cpp/writer
