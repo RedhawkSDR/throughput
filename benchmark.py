@@ -207,13 +207,16 @@ class PlotDisplay(object):
         pyplot.show()
 
 
-def test_transfer_size(test, monitor):
+def test_transfer_size(test, sizes, monitor):
     stats = Statistics()
     window = Averager(stats, window_size)
 
     stats.add_listener(monitor)
 
     average = Statistics()
+
+    reader_stats = ProcessInfo(test.get_reader())
+    writer_stats = ProcessInfo(test.get_writer())
 
     num_cpus = sum(len(numa.get_cpus(n)) for n in numa.get_nodes())
     cpu_info = CpuInfo()
@@ -227,8 +230,7 @@ def test_transfer_size(test, monitor):
     last_time = start
     last_total = 0
 
-    # Try powers of two from 16K to 32M
-    for transfer_size in [2**x for x in xrange(14, 26)]:
+    for transfer_size in sizes:
         monitor.test_started(transfer_size)
 
         test.transfer_size(transfer_size)
@@ -249,14 +251,14 @@ def test_transfer_size(test, monitor):
             last_time = now
 
             # Calculate average throughput over the sample period
-            current_total = test.received()
+            current_total = test.received
             delta = current_total - last_total
             last_total = current_total
             current_rate = delta / elapsed
 
             # Aggregate CPU usage
-            reader = test.get_reader_stats()
-            writer = test.get_writer_stats()
+            reader = reader_stats.poll()
+            writer = writer_stats.poll()
 
             system = cpu_info.poll()
             sys_cpu = num_cpus * 100.0 / sum(system.values())
@@ -264,16 +266,16 @@ def test_transfer_size(test, monitor):
             sample = {'time': now-start,
                       'rate': current_rate,
                       'size': transfer_size,
-                      'write_cpu': sum(w['cpu'] for w in writer) * sys_cpu,
-                      'write_rss': sum(w['rss'] for w in writer),
-                      'write_majflt': sum(w['majflt'] for w in writer),
-                      'write_minflt': sum(w['minflt'] for w in writer),
-                      'write_threads': sum(w['threads'] for w in writer),
-                      'read_cpu': sum(r['cpu'] for r in reader) * sys_cpu,
-                      'read_rss': sum(r['rss'] for r in reader),
-                      'read_majflt': sum(r['majflt'] for r in reader),
-                      'read_minflt': sum(r['minflt'] for r in reader),
-                      'read_threads': sum(r['threads'] for r in reader),
+                      'write_cpu': writer['cpu'] * sys_cpu,
+                      'write_rss': writer['rss'],
+                      'write_majflt': writer['majflt'],
+                      'write_minflt': writer['minflt'],
+                      'write_threads': writer['threads'],
+                      'read_cpu': reader['cpu'] * sys_cpu,
+                      'read_rss': reader['rss'],
+                      'read_majflt': reader['majflt'],
+                      'read_minflt': reader['minflt'],
+                      'read_threads': reader['threads'],
                       'cpu_user': system['user'] * sys_cpu,
                       'cpu_system': system['system'] * sys_cpu,
                       'cpu_idle': system['idle'] * sys_cpu,
@@ -300,14 +302,12 @@ def test_transfer_size(test, monitor):
 
 
 if __name__ == '__main__':
-    transfer_size = 16*1024
     transport = 'unix'
     numa_distance = None
     data_format = 'octet'
-    poll_time = 0.1
-    window_size = 10
+    poll_time = 0.25
+    window_size = 5
     tolerance = 0.1
-    count = 1
     nogui = False
 
     opts, args = getopt.getopt(sys.argv[1:], 'w:t:d:', ['transport=', 'numa-distance=', 'no-gui'])
@@ -352,6 +352,9 @@ if __name__ == '__main__':
         ('cpu_softirq', 'soft IRQ CPU(%)'),
     ]
 
+    # Try powers of two from 16K to 32M
+    transfer_sizes = [2**x for x in xrange(14, 26)]
+
     for interface in ('Raw', 'CORBA', 'BulkIO'):
         if interface == 'Raw':
             factory = raw.factory(transport)
@@ -363,9 +366,9 @@ if __name__ == '__main__':
 
         numa_policy = numa.NumaPolicy(numa_distance)
 
-        test = AggregateTest(factory, data_format, transfer_size, numa_policy, count)
+        test = factory.create(data_format, transfer_sizes[0], numa_policy.next())
         try:
-            stats, average = test_transfer_size(test, ProgressMonitor())
+            stats, average = test_transfer_size(test, transfer_sizes, ProgressMonitor())
         finally:
             test.terminate()
 
