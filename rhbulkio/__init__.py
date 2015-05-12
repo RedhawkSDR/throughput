@@ -23,7 +23,7 @@ class NumaLauncher(object):
 
 
 class BulkioThroughputTest(object):
-    def __init__(self, format, transfer_size, numa_policy):
+    def __init__(self, format, numa_policy):
         launcher = NumaLauncher(numa_policy)
         self.writer = sb.launch(os.path.join(PATH, 'writer/writer.spd.xml'), debugger=launcher)
         self.reader = sb.launch(os.path.join(PATH, 'reader/reader.spd.xml'), debugger=launcher)
@@ -59,8 +59,8 @@ class BulkioTestFactory(object):
         from ossie.utils import sb
         globals()['sb'] = sb
 
-    def create(self, format, transfer_size, numa_policy):
-        return BulkioThroughputTest(format, transfer_size, numa_policy)
+    def create(self, format, numa_policy):
+        return BulkioThroughputTest(format, numa_policy)
 
     def cleanup(self):
         pass

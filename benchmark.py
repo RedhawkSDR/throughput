@@ -207,104 +207,110 @@ class PlotDisplay(object):
         pyplot.show()
 
 
-def test_transfer_size(test, sizes, monitor):
-    stats = Statistics()
-    window = Averager(stats, window_size)
+class TransferSizeTest(object):
+    def __init__(self, sizes, poll_time, window_size, tolerance):
+        self.sizes = sizes
+        self.poll_time = poll_time
+        self.window_size = window_size
+        self.tolerance = tolerance
 
-    stats.add_listener(monitor)
+    def run(self, test, monitor):
+        stats = Statistics()
+        window = Averager(stats, self.window_size)
 
-    average = Statistics()
+        stats.add_listener(monitor)
 
-    reader_stats = ProcessInfo(test.get_reader())
-    writer_stats = ProcessInfo(test.get_writer())
+        average = Statistics()
 
-    num_cpus = sum(len(numa.get_cpus(n)) for n in numa.get_nodes())
-    cpu_info = CpuInfo()
+        reader_stats = ProcessInfo(test.get_reader())
+        writer_stats = ProcessInfo(test.get_writer())
 
-    test.start()
+        num_cpus = sum(len(numa.get_cpus(n)) for n in numa.get_nodes())
+        cpu_info = CpuInfo()
 
-    start = time.time()
-    next = start + poll_time
+        test.start()
 
-    now = start
-    last_time = start
-    last_total = 0
+        start = time.time()
+        next = start + self.poll_time
 
-    for transfer_size in sizes:
-        monitor.test_started(transfer_size)
+        now = start
+        last_time = start
+        last_total = 0
 
-        test.transfer_size(transfer_size)
-        window.reset()
+        for transfer_size in self.sizes:
+            monitor.test_started(transfer_size)
 
-        # Wait until window is stable (or it's taken long enough that we can
-        # assume it will never stabilize) to make decisions
-        while not window.is_stable(tolerance):
-            # Wait until next scheduled poll time
-            sleep_time = next - time.time()
-            next += poll_time
-            if sleep_time > 0.0:
-                time.sleep(sleep_time)
+            test.transfer_size(transfer_size)
+            window.reset()
 
-            # Measure time elapsed since last sample
-            now = time.time()
-            elapsed = now - last_time
-            last_time = now
+            # Wait until window is stable (or it's taken long enough that we can
+            # assume it will never stabilize) to make decisions
+            while not window.is_stable(self.tolerance):
+                # Wait until next scheduled poll time
+                sleep_time = next - time.time()
+                next += self.poll_time
+                if sleep_time > 0.0:
+                    time.sleep(sleep_time)
 
-            # Calculate average throughput over the sample period
-            current_total = test.received
-            delta = current_total - last_total
-            last_total = current_total
-            current_rate = delta / elapsed
+                # Measure time elapsed since last sample
+                now = time.time()
+                elapsed = now - last_time
+                last_time = now
 
-            # Aggregate CPU usage
-            reader = reader_stats.poll()
-            writer = writer_stats.poll()
+                # Calculate average throughput over the sample period
+                current_total = test.received
+                delta = current_total - last_total
+                last_total = current_total
+                current_rate = delta / elapsed
 
-            system = cpu_info.poll()
-            sys_cpu = num_cpus * 100.0 / sum(system.values())
+                # Aggregate CPU usage
+                reader = reader_stats.poll()
+                writer = writer_stats.poll()
 
-            sample = {'time': now-start,
-                      'rate': current_rate,
+                system = cpu_info.poll()
+                sys_cpu = num_cpus * 100.0 / sum(system.values())
+
+                sample = {'time': now-start,
+                          'rate': current_rate,
+                          'size': transfer_size,
+                          'write_cpu': writer['cpu'] * sys_cpu,
+                          'write_rss': writer['rss'],
+                          'write_majflt': writer['majflt'],
+                          'write_minflt': writer['minflt'],
+                          'write_threads': writer['threads'],
+                          'read_cpu': reader['cpu'] * sys_cpu,
+                          'read_rss': reader['rss'],
+                          'read_majflt': reader['majflt'],
+                          'read_minflt': reader['minflt'],
+                          'read_threads': reader['threads'],
+                          'cpu_user': system['user'] * sys_cpu,
+                          'cpu_system': system['system'] * sys_cpu,
+                          'cpu_idle': system['idle'] * sys_cpu,
+                          'cpu_iowait': system['iowait'] * sys_cpu,
+                          'cpu_irq': system['irq'] * sys_cpu,
+                          'cpu_softirq': system['softirq'] * sys_cpu,
+                          }
+                stats.add_sample(sample)
+
+            # Add the windowed average throughput to the stats
+            current_average = window.average()
+            # NB: Account for the fact that the variance is normalized
+            current_dev = window.variance()*current_average
+            sample = {'rate': current_average,
                       'size': transfer_size,
-                      'write_cpu': writer['cpu'] * sys_cpu,
-                      'write_rss': writer['rss'],
-                      'write_majflt': writer['majflt'],
-                      'write_minflt': writer['minflt'],
-                      'write_threads': writer['threads'],
-                      'read_cpu': reader['cpu'] * sys_cpu,
-                      'read_rss': reader['rss'],
-                      'read_majflt': reader['majflt'],
-                      'read_minflt': reader['minflt'],
-                      'read_threads': reader['threads'],
-                      'cpu_user': system['user'] * sys_cpu,
-                      'cpu_system': system['system'] * sys_cpu,
-                      'cpu_idle': system['idle'] * sys_cpu,
-                      'cpu_iowait': system['iowait'] * sys_cpu,
-                      'cpu_irq': system['irq'] * sys_cpu,
-                      'cpu_softirq': system['softirq'] * sys_cpu,
-                      }
-            stats.add_sample(sample)
+                      'dev':  current_dev}
+            average.add_sample(sample)
 
-        # Add the windowed average throughput to the stats
-        current_average = window.average()
-        # NB: Account for the fact that the variance is normalized
-        current_dev = window.variance()*current_average
-        sample = {'rate': current_average,
-                  'size': transfer_size,
-                  'dev':  current_dev}
-        average.add_sample(sample)
+            monitor.test_complete()
 
-        monitor.test_complete()
+        test.stop()
 
-    test.stop()
-    
-    return stats, average
+        return stats, average
 
 
 if __name__ == '__main__':
     transport = 'unix'
     numa_distance = None
-    data_format = 'octet'
     poll_time = 0.25
     window_size = 5
     tolerance = 0.1
@@ -354,6 +360,7 @@ if __name__ == '__main__':
 
     # Try powers of two from 16K to 32M
     transfer_sizes = [2**x for x in xrange(14, 26)]
+    test = TransferSizeTest(transfer_sizes, poll_time, window_size, tolerance)
 
     for interface in ('Raw', 'CORBA', 'BulkIO'):
         if interface == 'Raw':
@@ -366,11 +373,11 @@ if __name__ == '__main__':
 
         numa_policy = numa.NumaPolicy(numa_distance)
 
-        test = factory.create(data_format, transfer_sizes[0], numa_policy.next())
+        stream = factory.create('octet', numa_policy.next())
         try:
-            stats, average = test_transfer_size(test, transfer_sizes, ProgressMonitor())
+            stats, average = test.run(stream, ProgressMonitor())
         finally:
-            test.terminate()
+            stream.terminate()
 
         display.add_results(interface, stats, average)
 

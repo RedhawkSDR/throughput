@@ -23,13 +23,13 @@ class control(object):
 
 
 class RawThroughputTest(object):
-    def __init__(self, transport, transfer_size, numa_policy):
-        self.writer_control = control(transfer_size)
+    def __init__(self, transport, numa_policy):
+        self.writer_control = control(16384)
         writer_args = numa_policy(['raw/writer', transport, self.writer_control.filename])
         self.writer_proc = subprocess.Popen(writer_args, stdin=subprocess.PIPE, stdout=subprocess.PIPE)
         writer_addr = self.writer_proc.stdout.readline().rstrip()
 
-        self.reader_control = control(transfer_size)
+        self.reader_control = control(16384)
         reader_args = numa_policy(['raw/reader', transport, writer_addr, self.reader_control.filename])
         self.reader_proc = subprocess.Popen(reader_args)
 
@@ -65,8 +65,8 @@ class RawTestFactory(object):
     def __init__(self, transport):
         self.transport = transport
 
-    def create(self, format, transfer_size, numa_policy):
-        return RawThroughputTest(self.transport, transfer_size, numa_policy)
+    def create(self, format, numa_policy):
+        return RawThroughputTest(self.transport, numa_policy)
 
     def cleanup(self):
         pass
