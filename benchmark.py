@@ -148,10 +148,17 @@ class Averager(Statistics.Listener):
         return len(self.values)
 
 
-class TextPlotter(Statistics.Listener):
-    def add_sample(self, rate, size, read_cpu, write_cpu, **kw):
-        peak = self.stats.get_max_value('rate')
-        print '%s %s %.3f %.1f %.1f' % (to_binary(size), to_gbps(rate), rate/peak, read_cpu, write_cpu)
+class ProgressMonitor(object):
+    def test_started(self, size):
+        sys.stdout.write(to_binary(size))
+        sys.stdout.flush()
+
+    def add_sample(self, **kw):
+        sys.stdout.write('.')
+        sys.stdout.flush()
+
+    def test_complete(self):
+        sys.stdout.write('\n')
 
 
 class TextDisplay(object):
@@ -163,6 +170,7 @@ class TextDisplay(object):
 
     def show(self):
         pass
+
 
 class PlotDisplay(object):
     def __init__(self):
@@ -199,12 +207,11 @@ class PlotDisplay(object):
         pyplot.show()
 
 
-def test_transfer_size(test):
-    transfer_size = 16*1024
-
+def test_transfer_size(test, monitor):
     stats = Statistics()
     window = Averager(stats, window_size)
-    plotter = TextPlotter(stats)
+
+    stats.add_listener(monitor)
 
     average = Statistics()
 
@@ -220,57 +227,61 @@ def test_transfer_size(test):
     last_time = start
     last_total = 0
 
-    while transfer_size < (64*1024*1024):
-        # Wait until next scheduled poll time
-        sleep_time = next - time.time()
-        next += poll_time
-        if sleep_time > 0.0:
-            time.sleep(sleep_time)
+    # Try powers of two from 16K to 32M
+    for transfer_size in [2**x for x in xrange(14, 26)]:
+        monitor.test_started(transfer_size)
 
-        # Measure time elapsed since last sample
-        now = time.time()
-        elapsed = now - last_time
-        last_time = now
-
-        # Calculate average throughput over the sample period
-        current_total = test.received()
-        delta = current_total - last_total
-        last_total = current_total
-        current_rate = delta / elapsed
-
-        # Aggregate CPU usage
-        reader = test.get_reader_stats()
-        writer = test.get_writer_stats()
-
-        system = cpu_info.poll()
-        sys_cpu = num_cpus * 100.0 / sum(system.values())
-
-        sample = {'time': now-start,
-                  'rate': current_rate,
-                  'size': transfer_size,
-                  'write_cpu': sum(w['cpu'] for w in writer) * sys_cpu,
-                  'write_rss': sum(w['rss'] for w in writer),
-                  'write_majflt': sum(w['majflt'] for w in writer),
-                  'write_minflt': sum(w['minflt'] for w in writer),
-                  'write_threads': sum(w['threads'] for w in writer),
-                  'read_cpu': sum(r['cpu'] for r in reader) * sys_cpu,
-                  'read_rss': sum(r['rss'] for r in reader),
-                  'read_majflt': sum(r['majflt'] for r in reader),
-                  'read_minflt': sum(r['minflt'] for r in reader),
-                  'read_threads': sum(r['threads'] for r in reader),
-                  'cpu_user': system['user'] * sys_cpu,
-                  'cpu_system': system['system'] * sys_cpu,
-                  'cpu_idle': system['idle'] * sys_cpu,
-                  'cpu_iowait': system['iowait'] * sys_cpu,
-                  'cpu_irq': system['irq'] * sys_cpu,
-                  'cpu_softirq': system['softirq'] * sys_cpu,
-                  }
-        stats.add_sample(sample)
+        test.transfer_size(transfer_size)
+        window.reset()
 
         # Wait until window is stable (or it's taken long enough that we can
         # assume it will never stabilize) to make decisions
-        if not window.is_stable(tolerance):
-            continue
+        while not window.is_stable(tolerance):
+            # Wait until next scheduled poll time
+            sleep_time = next - time.time()
+            next += poll_time
+            if sleep_time > 0.0:
+                time.sleep(sleep_time)
+
+            # Measure time elapsed since last sample
+            now = time.time()
+            elapsed = now - last_time
+            last_time = now
+
+            # Calculate average throughput over the sample period
+            current_total = test.received()
+            delta = current_total - last_total
+            last_total = current_total
+            current_rate = delta / elapsed
+
+            # Aggregate CPU usage
+            reader = test.get_reader_stats()
+            writer = test.get_writer_stats()
+
+            system = cpu_info.poll()
+            sys_cpu = num_cpus * 100.0 / sum(system.values())
+
+            sample = {'time': now-start,
+                      'rate': current_rate,
+                      'size': transfer_size,
+                      'write_cpu': sum(w['cpu'] for w in writer) * sys_cpu,
+                      'write_rss': sum(w['rss'] for w in writer),
+                      'write_majflt': sum(w['majflt'] for w in writer),
+                      'write_minflt': sum(w['minflt'] for w in writer),
+                      'write_threads': sum(w['threads'] for w in writer),
+                      'read_cpu': sum(r['cpu'] for r in reader) * sys_cpu,
+                      'read_rss': sum(r['rss'] for r in reader),
+                      'read_majflt': sum(r['majflt'] for r in reader),
+                      'read_minflt': sum(r['minflt'] for r in reader),
+                      'read_threads': sum(r['threads'] for r in reader),
+                      'cpu_user': system['user'] * sys_cpu,
+                      'cpu_system': system['system'] * sys_cpu,
+                      'cpu_idle': system['idle'] * sys_cpu,
+                      'cpu_iowait': system['iowait'] * sys_cpu,
+                      'cpu_irq': system['irq'] * sys_cpu,
+                      'cpu_softirq': system['softirq'] * sys_cpu,
+                      }
+            stats.add_sample(sample)
 
         # Add the windowed average throughput to the stats
         current_average = window.average()
@@ -281,10 +292,7 @@ def test_transfer_size(test):
                   'dev':  current_dev}
         average.add_sample(sample)
 
-        # Adapt transfer size
-        transfer_size *= 2
-        test.transfer_size(transfer_size)
-        window.reset()
+        monitor.test_complete()
 
     test.stop()
     
@@ -344,25 +352,26 @@ if __name__ == '__main__':
         ('cpu_softirq', 'soft IRQ CPU(%)'),
     ]
 
-    for interface in ('raw', 'corba', 'bulkio'):
-        if interface == 'raw':
+    for interface in ('Raw', 'CORBA', 'BulkIO'):
+        if interface == 'Raw':
             factory = raw.factory(transport)
-        elif interface == 'corba':
+        elif interface == 'CORBA':
             factory = corba.factory(transport)
-        elif interface == 'bulkio':
+        elif interface == 'BulkIO':
             factory = bulkio.factory(transport)
+        print 'Measuring', interface
 
         numa_policy = numa.NumaPolicy(numa_distance)
 
         test = AggregateTest(factory, data_format, transfer_size, numa_policy, count)
         try:
-            stats, average = test_transfer_size(test)
+            stats, average = test_transfer_size(test, ProgressMonitor())
         finally:
             test.terminate()
 
         display.add_results(interface, stats, average)
 
-        filename = interface+'.csv'
+        filename = interface.lower()+'.csv'
         with open(filename, 'w') as f:
             print >>f, ','.join(title for name, title in csv_fields)
             for s in stats.samples:
