@@ -170,6 +170,7 @@ class PlotDisplay(object):
         globals()['pyplot'] = pyplot
 
         self.figure = pyplot.figure()
+        self.figure.canvas.set_window_title('REDHAWK Benchmark')
 
         # Create a line plot of instantaneous throughput vs. time
         self.line_plot = self.figure.add_subplot(221)
