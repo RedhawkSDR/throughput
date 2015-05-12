@@ -290,6 +290,9 @@ def test_transfer_size(test):
                   'cpu_user': system['user'] * sys_cpu,
                   'cpu_system': system['system'] * sys_cpu,
                   'cpu_idle': system['idle'] * sys_cpu,
+                  'cpu_iowait': system['iowait'] * sys_cpu,
+                  'cpu_irq': system['irq'] * sys_cpu,
+                  'cpu_softirq': system['softirq'] * sys_cpu,
                   }
         stats.add_sample(sample)
 
@@ -365,6 +368,9 @@ if __name__ == '__main__':
         ('cpu_user', 'user CPU(%)'),
         ('cpu_system', 'system CPU(%)'),
         ('cpu_idle', 'idle CPU(%)'),
+        ('cpu_iowait', 'I/O wait CPU(%)'),
+        ('cpu_irq', 'IRQ CPU(%)'),
+        ('cpu_softirq', 'soft IRQ CPU(%)'),
     ]
 
     for interface in ('raw', 'corba', 'bulkio'):
