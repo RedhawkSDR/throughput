@@ -172,56 +172,25 @@ class PlotDisplay(object):
         self.figure = pyplot.figure()
         self.figure.canvas.set_window_title('REDHAWK Benchmark')
 
-        # Create a line plot of instantaneous throughput vs. time
-        self.line_plot = self.figure.add_subplot(221)
-        self.line_plot.set_xlabel('Time (s)')
-        self.line_plot.set_ylabel('Throughput (bps)')
-
         # Create a bar graph of average throughput vs. transfer size
-        self.bar_plot = self.figure.add_subplot(223)
+        self.bar_plot = self.figure.add_subplot(111)
         self.bar_plot.set_xlabel('Transfer size')
         self.bar_plot.set_ylabel('Throughput (bps)')
 
-        self.reader_cpu = self.figure.add_subplot(224)
-        self.reader_cpu.set_xlabel('Time (s)')
-        self.reader_cpu.set_ylabel('Reader CPU (%)')
-
-        self.writer_cpu = self.figure.add_subplot(222)
-        self.writer_cpu.set_xlabel('Time (s)')
-        self.writer_cpu.set_ylabel('Writer CPU (%)')
-
-        pyplot.show(False)
+        self.figure.show()
 
         self.width = 1.0/3.0
         self.offset = 0.0
+        self.colors = itertools.cycle('bgrcmyk')
 
     def add_results(self, name, stats, average):
-        times = stats.get_field('time')
-        rates = stats.get_field('rate')
-        line, = self.line_plot.plot(times, rates, label=name)
-        peak = stats.get_max_sample('rate')
-        self.line_plot.axhline(peak['rate'], color=line.get_color())
-        best = average.get_max_sample('rate')
-        self.line_plot.axhline(best['rate'], color=line.get_color(), linestyle='--')
-
-        for group in stats.get_groups('size'):
-            # Display vertical line at size change
-            sample = group[0]
-            self.line_plot.axvline(sample['time'], color=line.get_color(), linestyle='--')
-
         sizes = average.get_field('size')
         rates = average.get_field('rate')
         dev = average.get_field('dev')
-        self.bar_plot.bar(numpy.arange(len(sizes))+self.offset, rates, color=line.get_color(), width=self.width, yerr=dev, ecolor='black')
+        self.bar_plot.bar(numpy.arange(len(sizes))+self.offset, rates, color=self.colors.next(), width=self.width, yerr=dev, ecolor='black')
         self.bar_plot.set_xticks(numpy.arange(len(sizes))+0.5)
         self.bar_plot.set_xticklabels([to_binary(s) for s in sizes])
         self.offset += self.width
-
-        read_cpu = stats.get_field('read_cpu')
-        self.reader_cpu.plot(times, read_cpu, label=name)
-
-        write_cpu = stats.get_field('write_cpu')
-        self.writer_cpu.plot(times, write_cpu, label=name)
 
         self.figure.canvas.draw()
         self.figure.canvas.flush_events()
