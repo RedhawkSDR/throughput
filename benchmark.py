@@ -223,7 +223,8 @@ class PlotDisplay(object):
         write_cpu = stats.get_field('write_cpu')
         self.writer_cpu.plot(times, write_cpu, label=name)
 
-        pyplot.draw()
+        self.figure.canvas.draw()
+        self.figure.canvas.flush_events()
 
     def show(self):
         pyplot.show()
