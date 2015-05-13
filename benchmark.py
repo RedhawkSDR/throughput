@@ -44,51 +44,14 @@ def to_binary(value):
     return '%d%s' % (value/math.pow(1024, index), suffixes[index])
 
 
-class Statistics(object):
-
-    class Listener(object):
-        def __init__(self, stats):
-            self.stats = stats
-            stats.add_listener(self)
-
-        def add_sample(self, **sample):
-            pass
-
-    def __init__(self):
-        self.samples = []
-        self.listeners = []
-
-    def add_listener(self, listener):
-        self.listeners.append(listener)
-
-    def add_sample(self, sample):
-        self.samples.append(sample)
-
-        for listener in self.listeners:
-            listener.add_sample(**sample)
-
-    def get_max_sample(self, field):
-        return max(self.samples, key=lambda s:s[field])
-
-    def get_max_value(self, field):
-        return self.get_max_sample(field)[field]
-
-    def get_field(self, field):
-        return [s[field] for s in self.samples]
-
-    def get_groups(self, field):
-        return [list(g) for k, g in itertools.groupby(self.samples, lambda s:s[field])]
-
-
-class Averager(Statistics.Listener):
-    def __init__(self, stats, window_size):
-        Statistics.Listener.__init__(self, stats)
+class Averager(object):
+    def __init__(self, window_size):
         self.values = []
         self.window_size = window_size
         self.max_window_size = 2 * self.window_size
 
-    def add_sample(self, rate, **kw):
-        self.values.append(rate)
+    def add_sample(self, value):
+        self.values.append(value)
 
     def reset(self):
         self.values = []
@@ -133,25 +96,30 @@ class TestMonitor(object):
 
 
 class TextDisplay(TestMonitor):
-
     def test_started(self, name, **kw):
+        self.best_rate = 0.0
+        self.peak_rate = 0.0
         print 'Measuring', name
 
-    def test_complete(self, stats, average, **kw):
-        best = average.get_max_sample('rate')
-        print 'Average:', to_binary(best['size']), to_gbps(best['rate'])
-        peak = stats.get_max_sample('rate')
-        print 'Peak:   ', to_binary(peak['size']), to_gbps(peak['rate'])
+    def test_complete(self, **kw):
+        print 'Average:', to_binary(self.best_size), to_gbps(self.best_rate)
+        print 'Peak:   ', to_binary(self.peak_size), to_gbps(self.peak_rate)
 
     def pass_started(self, size, **kw):
         sys.stdout.write(to_binary(size))
         sys.stdout.flush()
 
-    def sample_added(self, **kw):
+    def sample_added(self, size, rate, **kw):
+        if rate > self.peak_rate:
+            self.peak_size = size
+            self.peak_rate = rate
         sys.stdout.write('.')
         sys.stdout.flush()
 
-    def pass_complete(self, rate, dev, **kw):
+    def pass_complete(self, size, rate, dev, **kw):
+        if rate > self.best_rate:
+            self.best_size = size
+            self.best_rate = rate
         print '%s GBps (%.1f%%)' % (to_gbps(rate), 100.0*dev/rate)
 
     def wait(self):
@@ -276,10 +244,7 @@ class TransferSizeTest(BenchmarkTest):
         self.tolerance = tolerance
 
     def run(self, name, stream):
-        stats = Statistics()
-        window = Averager(stats, self.window_size)
-
-        average = Statistics()
+        window = Averager(self.window_size)
 
         reader_stats = ProcessInfo(stream.get_reader())
         writer_stats = ProcessInfo(stream.get_writer())
@@ -327,6 +292,8 @@ class TransferSizeTest(BenchmarkTest):
                 last_total = current_total
                 current_rate = delta / elapsed
 
+                window.add_sample(current_rate)
+
                 # Aggregate CPU usage
                 reader = reader_stats.poll()
                 writer = writer_stats.poll()
@@ -354,7 +321,6 @@ class TransferSizeTest(BenchmarkTest):
                           'cpu_irq': system['irq'] * sys_cpu,
                           'cpu_softirq': system['softirq'] * sys_cpu,
                           }
-                stats.add_sample(sample)
                 self.sample_added(**sample)
 
             # Add the windowed average throughput to the stats
@@ -364,15 +330,12 @@ class TransferSizeTest(BenchmarkTest):
             sample = {'rate': current_average,
                       'size': transfer_size,
                       'dev':  current_dev}
-            average.add_sample(sample)
 
             self.pass_complete(**sample)
 
         stream.stop()
 
-        self.test_complete(stats=stats, average=average)
-
-        return stats, average
+        self.test_complete()
 
 
 if __name__ == '__main__':
