@@ -148,8 +148,37 @@ class Averager(Statistics.Listener):
         return len(self.values)
 
 
-class ProgressMonitor(object):
-    def test_started(self, size):
+class TestMonitor(object):
+    def test_started(self, **kw):
+        pass
+
+    def test_complete(self, **kw):
+        pass
+
+    def pass_started(self, **kw):
+        pass
+
+    def add_sample(self, **kw):
+        pass
+
+    def pass_complete(self, **kw):
+        pass
+
+
+class TextSeries(TestMonitor):
+    def __init__(self, name):
+        self.name = name
+
+    def test_started(self, **kw):
+        print 'Measuring', self.name
+
+    def test_complete(self, stats, average, **kw):
+        best = average.get_max_sample('rate')
+        print 'Average:', to_binary(best['size']), to_gbps(best['rate'])
+        peak = stats.get_max_sample('rate')
+        print 'Peak:   ', to_binary(peak['size']), to_gbps(peak['rate'])
+
+    def pass_started(self, size, **kw):
         sys.stdout.write(to_binary(size))
         sys.stdout.flush()
 
@@ -157,22 +186,8 @@ class ProgressMonitor(object):
         sys.stdout.write('.')
         sys.stdout.flush()
 
-    def test_complete(self):
+    def pass_complete(self, **kw):
         sys.stdout.write('\n')
-
-
-class TextSeries(object):
-    def __init__(self, name):
-        self.name = name
-
-    def test_complete(self, stats, average):
-        best = average.get_max_sample('rate')
-        print 'Average:', to_binary(best['size']), to_gbps(best['rate'])
-        peak = stats.get_max_sample('rate')
-        print 'Peak:   ', to_binary(peak['size']), to_gbps(peak['rate'])
-
-    def add_sample(self, **kw):
-        pass
 
 
 class TextDisplay(object):
@@ -186,18 +201,18 @@ class TextDisplay(object):
         pass
 
 
-class BarSeries(object):
+class BarSeries(TestMonitor):
     def __init__(self, graph, name, offset, color):
         self.graph = graph
         self.name = name
         self.offset = offset
         self.color = color
 
-    def add_sample(self, size, rate, dev, **kw):
-        self.graph.draw_bar(size, rate, dev, self.offset, self.color)
-
     def test_complete(self, stats, average):
         pass
+
+    def pass_complete(self, size, rate, dev, **kw):
+        self.graph.draw_bar(size, rate, dev, self.offset, self.color)
 
 
 class BarGraph(object):
@@ -214,7 +229,6 @@ class BarGraph(object):
         self.bar_plot.set_ylabel('Throughput (Bps)')
 
         self.width = 1.0/3.0
-        self.offset = 0.0
         self.colors = itertools.cycle('bgrcmyk')
 
         self.bins = dict((bin, index) for index, bin in enumerate(bins))
@@ -227,13 +241,18 @@ class BarGraph(object):
         self.figure.show()
 
     def add_series(self, name):
-        from matplotlib.patches import Rectangle
-        offset = self.offset
-        self.offset += self.width
+        offset = len(self.series)
         self.series.append(BarSeries(self, name, offset, self.colors.next()))
+
+        # Create an updated legend. There are no bars for this series yet;
+        # create an otherwise unused rectangle to provide the color for each
+        # series.
+        from matplotlib.patches import Rectangle
         bars = [Rectangle((0,0),0,0,facecolor=s.color) for s in self.series]
         names = [s.name for s in self.series]
         self.bar_plot.legend(bars, names, loc='upper left')
+
+        # The last series is the one that was just created
         return self.series[-1]
 
     def wait(self):
@@ -243,7 +262,7 @@ class BarGraph(object):
         self.figure.canvas.flush_events()
 
     def draw_bar(self, bin, value, dev, offset, color):
-        pos = self.bins[bin] + offset
+        pos = self.bins[bin] + (offset*self.width)
         bar = self.bar_plot.bar([pos], [value], color=color, width=self.width, yerr=dev, ecolor='black')
         self.bar_plot.set_xbound(0.0, len(self.bins))
         self.figure.canvas.draw()
@@ -260,23 +279,19 @@ class TransferSizeTest(object):
     def add_idle_task(self, task):
         self.__idle_tasks.append(task)
 
-    def run(self, test, monitor, avg_monitor):
+    def run(self, test, monitor):
         stats = Statistics()
         window = Averager(stats, self.window_size)
 
-        if monitor:
-            stats.add_listener(monitor)
-
         average = Statistics()
-
-        if avg_monitor:
-            average.add_listener(avg_monitor)
 
         reader_stats = ProcessInfo(test.get_reader())
         writer_stats = ProcessInfo(test.get_writer())
 
         num_cpus = sum(len(numa.get_cpus(n)) for n in numa.get_nodes())
         cpu_info = CpuInfo()
+
+        monitor.test_started()
 
         test.start()
 
@@ -288,7 +303,7 @@ class TransferSizeTest(object):
         last_total = 0
 
         for transfer_size in self.sizes:
-            monitor.test_started(transfer_size)
+            monitor.pass_started(size=transfer_size)
 
             test.transfer_size(transfer_size)
             window.reset()
@@ -344,6 +359,7 @@ class TransferSizeTest(object):
                           'cpu_softirq': system['softirq'] * sys_cpu,
                           }
                 stats.add_sample(sample)
+                monitor.add_sample(**sample)
 
             # Add the windowed average throughput to the stats
             current_average = window.average()
@@ -354,12 +370,11 @@ class TransferSizeTest(object):
                       'dev':  current_dev}
             average.add_sample(sample)
 
-            monitor.test_complete()
+            monitor.pass_complete(**sample)
 
         test.stop()
 
-        if avg_monitor:
-            avg_monitor.test_complete(stats, average)
+        monitor.test_complete(stats, average)
 
         return stats, average
 
@@ -430,13 +445,12 @@ if __name__ == '__main__':
             factory = corba.factory(transport)
         elif interface == 'BulkIO':
             factory = bulkio.factory(transport)
-        print 'Measuring', interface
 
         numa_policy = numa.NumaPolicy(numa_distance)
 
         stream = factory.create('octet', numa_policy.next())
         try:
-            stats, average = test.run(stream, ProgressMonitor(), display.add_series(interface))
+            stats, average = test.run(stream, display.add_series(interface))
         finally:
             stream.terminate()
 
