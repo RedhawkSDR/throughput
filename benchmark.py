@@ -165,12 +165,10 @@ class TestMonitor(object):
         pass
 
 
-class TextSeries(TestMonitor):
-    def __init__(self, name):
-        self.name = name
+class TextDisplay(TestMonitor):
 
-    def test_started(self, **kw):
-        print 'Measuring', self.name
+    def test_started(self, name, **kw):
+        print 'Measuring', name
 
     def test_complete(self, stats, average, **kw):
         best = average.get_max_sample('rate')
@@ -189,11 +187,6 @@ class TextSeries(TestMonitor):
     def pass_complete(self, **kw):
         sys.stdout.write('\n')
 
-
-class TextDisplay(object):
-    def add_series(self, name):
-        return TextSeries(name)
-
     def update(self):
         pass
 
@@ -201,10 +194,13 @@ class TextDisplay(object):
         pass
 
 
-class CSVFile(TestMonitor):
-    def __init__(self, filename, fields):
-        self.file = open(filename, 'w')
+class CSVOutput(TestMonitor):
+    def __init__(self, fields):
         self.fields = fields
+
+    def test_started(self, name, **kw):
+        filename = name.lower() + '.csv'
+        self.file = open(filename, 'w')
         print >>self.file, ','.join(title for name, title in self.fields)
 
     def add_sample(self, **stats):
@@ -214,21 +210,14 @@ class CSVFile(TestMonitor):
         self.file.close()
 
 
-class BarSeries(TestMonitor):
-    def __init__(self, graph, name, offset, color):
-        self.graph = graph
+class BarSeries(object):
+    def __init__(self, name, offset, color):
         self.name = name
         self.offset = offset
         self.color = color
 
-    def test_complete(self, stats, average):
-        pass
 
-    def pass_complete(self, size, rate, dev, **kw):
-        self.graph.draw_bar(size, rate, dev, self.offset, self.color)
-
-
-class BarGraph(object):
+class BarGraph(TestMonitor):
     def __init__(self, bins):
         from matplotlib import pyplot
         globals()['pyplot'] = pyplot
@@ -253,9 +242,9 @@ class BarGraph(object):
 
         self.figure.show()
 
-    def add_series(self, name):
+    def test_started(self, name, **kw):
         offset = len(self.series)
-        self.series.append(BarSeries(self, name, offset, self.colors.next()))
+        self.series.append(BarSeries(name, offset, self.colors.next()))
 
         # Create an updated legend. There are no bars for this series yet;
         # create an otherwise unused rectangle to provide the color for each
@@ -265,8 +254,9 @@ class BarGraph(object):
         names = [s.name for s in self.series]
         self.bar_plot.legend(bars, names, loc='upper left')
 
-        # The last series is the one that was just created
-        return self.series[-1]
+    def pass_complete(self, size, rate, dev, **kw):
+        series = self.series[-1]
+        self.draw_bar(size, rate, dev, series.offset, series.color)
 
     def wait(self):
         pyplot.show()
@@ -337,7 +327,7 @@ class TransferSizeTest(BenchmarkTest):
         self.window_size = window_size
         self.tolerance = tolerance
 
-    def run(self, test):
+    def run(self, name, test):
         stats = Statistics()
         window = Averager(stats, self.window_size)
 
@@ -349,7 +339,7 @@ class TransferSizeTest(BenchmarkTest):
         num_cpus = sum(len(numa.get_cpus(n)) for n in numa.get_nodes())
         cpu_info = CpuInfo()
 
-        self.test_started()
+        self.test_started(name=name)
 
         test.start()
 
@@ -492,6 +482,8 @@ if __name__ == '__main__':
     suite = TransferSizeSuite(transfer_sizes, poll_time, window_size, tolerance)
     suite.add_idle_task(display.update)
 
+    csv = CSVOutput(csv_fields)
+
     for interface in ('Raw', 'CORBA', 'BulkIO'):
         if interface == 'Raw':
             factory = raw.factory(transport)
@@ -504,16 +496,14 @@ if __name__ == '__main__':
 
         # Create a display-specific data series to monitor the test results
         test = suite.create()
-        monitor = display.add_series(interface)
-        test.add_monitor(monitor)
+        test.add_monitor(display)
 
         # Create a CSV file to save the output
-        csv = CSVFile(interface.lower() + '.csv', csv_fields)
         test.add_monitor(csv)
 
         stream = factory.create('octet', numa_policy.next())
         try:
-            test.run(stream)
+            test.run(interface, stream)
         finally:
             stream.terminate()
 
