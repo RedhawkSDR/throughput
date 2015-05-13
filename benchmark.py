@@ -43,37 +43,6 @@ def to_binary(value):
     index = int(math.floor(math.log(value, 1024)))
     return '%d%s' % (value/math.pow(1024, index), suffixes[index])
 
-class AggregateTest(object):
-    def __init__(self, factory, data_format, transfer_size, numa_policy, count):
-        self.tests = [factory.create(data_format, transfer_size, numa_policy.next()) for ii in xrange(count)]
-        self.reader_stats = [ProcessInfo(t.get_reader()) for t in self.tests]
-        self.writer_stats = [ProcessInfo(t.get_writer()) for t in self.tests]
-
-    def start(self):
-        for test in self.tests:
-            test.start()
-
-    def stop(self):
-        for test in self.tests:
-            test.stop()
-
-    def get_reader_stats(self):
-        return [s.poll() for s in self.reader_stats]
-
-    def get_writer_stats(self):
-        return [s.poll() for s in self.writer_stats]
-
-    def received(self):
-        return sum(test.received for test in self.tests)
-
-    def transfer_size(self, length):
-        for test in self.tests:
-            test.transfer_size(length)
-
-    def terminate(self):
-        for test in self.tests:
-            test.terminate()
-
 
 class Statistics(object):
 
