@@ -192,8 +192,11 @@ class TextDisplay(TestMonitor):
 
 
 class CSVOutput(TestMonitor):
-    def __init__(self, fields):
-        self.fields = fields
+    def __init__(self):
+        self.fields = []
+
+    def add_field(self, key, header):
+        self.fields.append((key, header))
 
     def test_started(self, name, **kw):
         filename = name.lower() + '.csv'
@@ -428,28 +431,6 @@ if __name__ == '__main__':
         elif key == '--no-gui':
             nogui = True
 
-    csv_fields = [
-        ('time', 'time(s)'),
-        ('rate', 'rate(Bps)'),
-        ('size', 'transfer size(B)'),
-        ('write_cpu', 'writer cpu(%)'),
-        ('write_rss', 'writer rss'),
-        ('write_majflt', 'writer major faults'),
-        ('write_minflt', 'writer minor faults'),
-        ('write_threads', 'writer threads'),
-        ('read_cpu', 'reader cpu(%)'),
-        ('read_rss', 'reader rss'),
-        ('read_majflt', 'reader major faults'),
-        ('read_minflt', 'reader minor faults'),
-        ('read_threads', 'reader threads'),
-        ('cpu_user', 'user CPU(%)'),
-        ('cpu_system', 'system CPU(%)'),
-        ('cpu_idle', 'idle CPU(%)'),
-        ('cpu_iowait', 'I/O wait CPU(%)'),
-        ('cpu_irq', 'IRQ CPU(%)'),
-        ('cpu_softirq', 'soft IRQ CPU(%)'),
-    ]
-
     # Try powers of two from 16K to 32M
     transfer_sizes = [2**x for x in xrange(14, 26)]
     test = TransferSizeTest(transfer_sizes, poll_time, window_size, tolerance)
@@ -461,7 +442,27 @@ if __name__ == '__main__':
         test.add_idle_task(display.update)
     test.add_monitor(display)
 
-    csv = CSVOutput(csv_fields)
+    csv = CSVOutput()
+    csv.add_field('time', 'time(s)')
+    csv.add_field('rate', 'rate(Bps)')
+    csv.add_field('size', 'transfer size(B)')
+    csv.add_field('write_cpu', 'writer cpu(%)')
+    csv.add_field('write_rss', 'writer rss')
+    csv.add_field('write_majflt', 'writer major faults')
+    csv.add_field('write_minflt', 'writer minor faults')
+    csv.add_field('write_threads', 'writer threads')
+    csv.add_field('read_cpu', 'reader cpu(%)')
+    csv.add_field('read_rss', 'reader rss')
+    csv.add_field('read_majflt', 'reader major faults')
+    csv.add_field('read_minflt', 'reader minor faults')
+    csv.add_field('read_threads', 'reader threads')
+    csv.add_field('cpu_user', 'user CPU(%)')
+    csv.add_field('cpu_system', 'system CPU(%)')
+    csv.add_field('cpu_idle', 'idle CPU(%)')
+    csv.add_field('cpu_iowait', 'I/O wait CPU(%)')
+    csv.add_field('cpu_irq', 'IRQ CPU(%)')
+    csv.add_field('cpu_softirq', 'soft IRQ CPU(%)')
+
     test.add_monitor(csv)
 
     for interface in ('Raw', 'CORBA', 'BulkIO'):
