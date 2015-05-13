@@ -268,7 +268,7 @@ class BarGraph(object):
         self.figure.canvas.draw()
 
 
-class TransferSizeTest(object):
+class TransferSizeSuite(object):
     def __init__(self, sizes, poll_time, window_size, tolerance):
         self.sizes = sizes
         self.poll_time = poll_time
@@ -279,7 +279,52 @@ class TransferSizeTest(object):
     def add_idle_task(self, task):
         self.__idle_tasks.append(task)
 
-    def run(self, test, monitor):
+    def create(self):
+        return TransferSizeTest(self, self.sizes, self.poll_time, self.window_size, self.tolerance)
+
+    def idle_tasks(self):
+        for task in self.__idle_tasks:
+            task()
+
+
+class BenchmarkTest(object):
+    def __init__(self):
+        self.monitors = []
+
+    def add_monitor(self, monitor):
+        self.monitors.append(monitor)
+
+    def test_started(self, **kw):
+        for monitor in self.monitors:
+            monitor.test_started(**kw)
+
+    def test_complete(self, **kw):
+        for monitor in self.monitors:
+            monitor.test_complete(**kw)
+
+    def pass_started(self, **kw):
+        for monitor in self.monitors:
+            monitor.pass_started(**kw)
+
+    def pass_complete(self, **kw):
+        for monitor in self.monitors:
+            monitor.pass_complete(**kw)
+
+    def sample_added(self, **kw):
+        for monitor in self.monitors:
+            monitor.add_sample(**kw)
+
+
+class TransferSizeTest(BenchmarkTest):
+    def __init__(self, suite, sizes, poll_time, window_size, tolerance):
+        BenchmarkTest.__init__(self)
+        self.suite = suite
+        self.sizes = sizes
+        self.poll_time = poll_time
+        self.window_size = window_size
+        self.tolerance = tolerance
+
+    def run(self, test):
         stats = Statistics()
         window = Averager(stats, self.window_size)
 
@@ -291,7 +336,7 @@ class TransferSizeTest(object):
         num_cpus = sum(len(numa.get_cpus(n)) for n in numa.get_nodes())
         cpu_info = CpuInfo()
 
-        monitor.test_started()
+        self.test_started()
 
         test.start()
 
@@ -303,7 +348,7 @@ class TransferSizeTest(object):
         last_total = 0
 
         for transfer_size in self.sizes:
-            monitor.pass_started(size=transfer_size)
+            self.pass_started(size=transfer_size)
 
             test.transfer_size(transfer_size)
             window.reset()
@@ -312,7 +357,7 @@ class TransferSizeTest(object):
             # assume it will never stabilize) to make decisions
             while not window.is_stable(self.tolerance):
                 # Allow UI to update, etc.
-                self.idle_tasks()
+                self.suite.idle_tasks()
 
                 # Wait until next scheduled poll time
                 sleep_time = next - time.time()
@@ -359,7 +404,7 @@ class TransferSizeTest(object):
                           'cpu_softirq': system['softirq'] * sys_cpu,
                           }
                 stats.add_sample(sample)
-                monitor.add_sample(**sample)
+                self.sample_added(**sample)
 
             # Add the windowed average throughput to the stats
             current_average = window.average()
@@ -370,17 +415,13 @@ class TransferSizeTest(object):
                       'dev':  current_dev}
             average.add_sample(sample)
 
-            monitor.pass_complete(**sample)
+            self.pass_complete(**sample)
 
         test.stop()
 
-        monitor.test_complete(stats, average)
+        self.test_complete(stats=stats, average=average)
 
         return stats, average
-
-    def idle_tasks(self):
-        for task in self.__idle_tasks:
-            task()
 
 
 if __name__ == '__main__':
@@ -435,8 +476,8 @@ if __name__ == '__main__':
     else:
         display = BarGraph(transfer_sizes)
 
-    test = TransferSizeTest(transfer_sizes, poll_time, window_size, tolerance)
-    test.add_idle_task(display.update)
+    suite = TransferSizeSuite(transfer_sizes, poll_time, window_size, tolerance)
+    suite.add_idle_task(display.update)
 
     for interface in ('Raw', 'CORBA', 'BulkIO'):
         if interface == 'Raw':
@@ -448,9 +489,11 @@ if __name__ == '__main__':
 
         numa_policy = numa.NumaPolicy(numa_distance)
 
+        test = suite.create()
+        test.add_monitor(display.add_series(interface))
         stream = factory.create('octet', numa_policy.next())
         try:
-            stats, average = test.run(stream, display.add_series(interface))
+            stats, average = test.run(stream)
         finally:
             stream.terminate()
 
