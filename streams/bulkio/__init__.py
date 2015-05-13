@@ -22,7 +22,7 @@ class NumaLauncher(object):
         return command[0], command[1:]
 
 
-class BulkioThroughputTest(object):
+class BulkioStream(object):
     def __init__(self, format, numa_policy):
         launcher = NumaLauncher(numa_policy)
         self.writer = sb.launch(os.path.join(PATH, 'writer/writer.spd.xml'), debugger=launcher)
@@ -51,7 +51,7 @@ class BulkioThroughputTest(object):
         self.writer.releaseObject()
         self.reader.releaseObject()
 
-class BulkioTestFactory(object):
+class BulkioStreamFactory(object):
     def __init__(self, transport):
         configfile = 'config/omniORB-%s.cfg' % transport
         os.environ['OMNIORB_CONFIG'] = os.path.join(PATH, configfile)
@@ -59,10 +59,10 @@ class BulkioTestFactory(object):
         globals()['sb'] = sb
 
     def create(self, format, numa_policy):
-        return BulkioThroughputTest(format, numa_policy)
+        return BulkioStream(format, numa_policy)
 
     def cleanup(self):
         pass
 
 def factory(transport):
-    return BulkioTestFactory(transport)
+    return BulkioStreamFactory(transport)

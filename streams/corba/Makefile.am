@@ -13,7 +13,7 @@ rawdataSK.cc rawdata.hh: idl/rawdata.idl
 	omniidl -bcxx $<
 
 rawdata/__init__.py: idl/rawdata.idl
-	omniidl -bpython -C .. -Wbpackage=corba $<
+	omniidl -bpython -C ../.. -Wbpackage=streams.corba $<
 
 clean-local:
 	-rm -rf rawdata rawdata__POA

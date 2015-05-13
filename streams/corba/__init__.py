@@ -5,14 +5,14 @@ import rawdata
 
 __all__ = ('factory')
 
-class CorbaThroughputTest(object):
+class CorbaStream(object):
     def __init__(self, orbargs, orb, format, numa_policy):
-        reader_args = numa_policy(['corba/reader'] + orbargs)
+        reader_args = numa_policy(['streams/corba/reader'] + orbargs)
         self.reader_proc = subprocess.Popen(reader_args, stdout=subprocess.PIPE)
         ior = self.reader_proc.stdout.readline().rstrip()
         self.reader = orb.string_to_object(ior)
 
-        writer_args = numa_policy(['corba/writer'] + orbargs)
+        writer_args = numa_policy(['streams/corba/writer'] + orbargs)
         self.writer_proc = subprocess.Popen(writer_args, stdout=subprocess.PIPE)
         ior = self.writer_proc.stdout.readline().rstrip()
         self.writer = orb.string_to_object(ior)
@@ -45,7 +45,7 @@ class CorbaThroughputTest(object):
         self.reader_proc.wait()
         self.reader_proc.wait()
 
-class CorbaTestFactory(object):
+class CorbaStreamFactory(object):
     def __init__(self, transport):
         if transport == 'unix':
             self.orbargs = ['-ORBendPoint', 'giop:unix:']
@@ -55,10 +55,10 @@ class CorbaTestFactory(object):
         self.orb = omniORB.CORBA.ORB_init()
 
     def create(self, data_format, numa_policy):
-        return CorbaThroughputTest(self.orbargs, self.orb, data_format, numa_policy)
+        return CorbaStream(self.orbargs, self.orb, data_format, numa_policy)
 
     def cleanup(self):
         self.orb.destroy()
 
 def factory(transport):
-    return CorbaTestFactory(transport)
+    return CorbaStreamFactory(transport)

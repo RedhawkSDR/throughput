@@ -1,3 +1,3 @@
 ACLOCAL_AMFLAGS = -I ${OSSIEHOME}/share/aclocal/ossie
 
-SUBDIRS = raw corba rhbulkio/reader/cpp rhbulkio/writer/cpp
+SUBDIRS = streams/raw streams/corba streams/bulkio/reader/cpp streams/bulkio/writer/cpp

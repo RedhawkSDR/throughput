@@ -23,8 +23,9 @@ AX_BOOST_THREAD
 AX_BOOST_REGEX
 
 AC_CONFIG_FILES([Makefile \
-                 corba/Makefile \
-                 raw/Makefile \
-                 rhbulkio/reader/cpp/Makefile rhbulkio/writer/cpp/Makefile])
+                 streams/corba/Makefile \
+                 streams/raw/Makefile \
+                 streams/bulkio/reader/cpp/Makefile \
+                 streams/bulkio/writer/cpp/Makefile])
 AC_OUTPUT
 

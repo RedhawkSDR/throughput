@@ -9,5 +9,14 @@ depcomp
 install-sh
 ltmain.sh
 missing
-rhbulkio/reader/cpp/reader
-rhbulkio/writer/cpp/writer
+streams/bulkio/reader/cpp/reader
+streams/bulkio/writer/cpp/writer
+streams/corba/rawdata/
+streams/corba/rawdata__POA/
+streams/corba/rawdata_idl.py
+streams/corba/rawdata.hh
+streams/corba/rawdataSK.cc
+streams/corba/reader
+streams/corba/writer
+streams/raw/reader
+streams/raw/writer

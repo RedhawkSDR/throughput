@@ -8,9 +8,7 @@ import itertools
 import numa
 from procinfo import CpuInfo, ProcessInfo
 
-import raw
-import corba
-import rhbulkio as bulkio
+from streams import raw, corba, bulkio
 
 def samples_to_int(value):
     scale = 1
