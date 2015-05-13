@@ -168,7 +168,10 @@ class TextDisplay(object):
         peak = stats.get_max_sample('rate')
         print 'Peak:   ', to_binary(peak['size']), to_gbps(peak['rate'])
 
-    def show(self):
+    def update(self):
+        pass
+
+    def wait(self):
         pass
 
 
@@ -203,8 +206,11 @@ class PlotDisplay(object):
         self.figure.canvas.draw()
         self.figure.canvas.flush_events()
 
-    def show(self):
+    def wait(self):
         pyplot.show()
+
+    def update(self):
+        self.figure.canvas.flush_events()
 
 
 class TransferSizeTest(object):
@@ -213,6 +219,10 @@ class TransferSizeTest(object):
         self.poll_time = poll_time
         self.window_size = window_size
         self.tolerance = tolerance
+        self.__idle_tasks = []
+
+    def add_idle_task(self, task):
+        self.__idle_tasks.append(task)
 
     def run(self, test, monitor):
         stats = Statistics()
@@ -246,6 +256,9 @@ class TransferSizeTest(object):
             # Wait until window is stable (or it's taken long enough that we can
             # assume it will never stabilize) to make decisions
             while not window.is_stable(self.tolerance):
+                # Allow UI to update, etc.
+                self.idle_tasks()
+
                 # Wait until next scheduled poll time
                 sleep_time = next - time.time()
                 next += self.poll_time
@@ -307,6 +320,10 @@ class TransferSizeTest(object):
 
         return stats, average
 
+    def idle_tasks(self):
+        for task in self.__idle_tasks:
+            task()
+
 
 if __name__ == '__main__':
     transport = 'unix'
@@ -361,6 +378,7 @@ if __name__ == '__main__':
     # Try powers of two from 16K to 32M
     transfer_sizes = [2**x for x in xrange(14, 26)]
     test = TransferSizeTest(transfer_sizes, poll_time, window_size, tolerance)
+    test.add_idle_task(display.update)
 
     for interface in ('Raw', 'CORBA', 'BulkIO'):
         if interface == 'Raw':
@@ -387,4 +405,4 @@ if __name__ == '__main__':
             for s in stats.samples:
                 print >>f, ','.join(str(s[name]) for name, title in csv_fields)
 
-    display.show()
+    display.wait()
