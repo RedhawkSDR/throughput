@@ -44,40 +44,6 @@ def to_binary(value):
     return '%d%s' % (value/math.pow(1024, index), suffixes[index])
 
 
-class Averager(object):
-    def __init__(self, window_size):
-        self.values = []
-        self.window_size = window_size
-        self.max_window_size = 2 * self.window_size
-
-    def add_sample(self, value):
-        self.values.append(value)
-
-    def reset(self):
-        self.values = []
-
-    def is_stable(self, tolerance):
-        if len(self.values) < self.window_size:
-            return False
-        elif len(self.values) >= self.max_window_size:
-            return True
-
-        return self.variance() <= tolerance
-
-    def get_data(self):
-        return self.values
-
-    def average(self):
-        return numpy.average(self.get_data())
-
-    def variance(self):
-        data = self.get_data()
-        return numpy.std(data)/numpy.average(data)
-
-    def length(self):
-        return len(self.values)
-
-
 class TestMonitor(object):
     def test_started(self, **kw):
         pass
@@ -235,6 +201,42 @@ class BenchmarkTest(object):
             task()
 
 
+class Averager(object):
+    def __init__(self, window_size):
+        self.values = []
+        self.window_size = window_size
+        self.max_window_size = 2 * self.window_size
+
+    def add_sample(self, value):
+        self.values.append(value)
+
+    def reset(self):
+        self.values = []
+
+    def is_stable(self, tolerance):
+        if len(self.values) < self.window_size:
+            return False
+        elif len(self.values) >= self.max_window_size:
+            return True
+
+        # Compare the normalized standard deviation to the tolerance
+        data = self.get_data()
+        variance = numpy.std(data)/numpy.mean(data)
+        return variance <= tolerance
+
+    def get_data(self):
+        return self.values
+
+    def mean(self):
+        return numpy.mean(self.get_data())
+
+    def std(self):
+        return numpy.std(self.get_data())
+
+    def length(self):
+        return len(self.values)
+
+
 class TransferSizeTest(BenchmarkTest):
     def __init__(self, sizes, poll_time, window_size, tolerance):
         BenchmarkTest.__init__(self)
@@ -323,13 +325,11 @@ class TransferSizeTest(BenchmarkTest):
                           }
                 self.sample_added(**sample)
 
-            # Add the windowed average throughput to the stats
-            current_average = window.average()
-            # NB: Account for the fact that the variance is normalized
-            current_dev = window.variance()*current_average
-            sample = {'rate': current_average,
+            # The current pass is complete, notify monitors of the average rate
+            # and deviation
+            sample = {'rate': window.mean(),
                       'size': transfer_size,
-                      'dev':  current_dev}
+                      'dev':  window.std()}
 
             self.pass_complete(**sample)
 
