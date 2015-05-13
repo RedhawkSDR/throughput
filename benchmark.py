@@ -187,8 +187,9 @@ class TextDisplay(object):
 
 
 class BarSeries(object):
-    def __init__(self, graph, offset, color):
+    def __init__(self, graph, name, offset, color):
         self.graph = graph
+        self.name = name
         self.offset = offset
         self.color = color
 
@@ -221,12 +222,19 @@ class BarGraph(object):
         self.bar_plot.set_xticklabels([to_binary(b) for b in bins])
         self.bar_plot.set_xbound(0.0, len(self.bins))
 
+        self.series = []
+
         self.figure.show()
 
     def add_series(self, name):
+        from matplotlib.patches import Rectangle
         offset = self.offset
         self.offset += self.width
-        return BarSeries(self, offset, self.colors.next())
+        self.series.append(BarSeries(self, name, offset, self.colors.next()))
+        bars = [Rectangle((0,0),0,0,facecolor=s.color) for s in self.series]
+        names = [s.name for s in self.series]
+        self.bar_plot.legend(bars, names, loc='upper left')
+        return self.series[-1]
 
     def wait(self):
         pyplot.show()
@@ -236,7 +244,7 @@ class BarGraph(object):
 
     def draw_bar(self, bin, value, dev, offset, color):
         pos = self.bins[bin] + offset
-        self.bar_plot.bar([pos], [value], color=color, width=self.width, yerr=dev, ecolor='black')
+        bar = self.bar_plot.bar([pos], [value], color=color, width=self.width, yerr=dev, ecolor='black')
         self.bar_plot.set_xbound(0.0, len(self.bins))
         self.figure.canvas.draw()
 
