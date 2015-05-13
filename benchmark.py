@@ -201,6 +201,19 @@ class TextDisplay(object):
         pass
 
 
+class CSVFile(TestMonitor):
+    def __init__(self, filename, fields):
+        self.file = open(filename, 'w')
+        self.fields = fields
+        print >>self.file, ','.join(title for name, title in self.fields)
+
+    def add_sample(self, **stats):
+        print >>self.file, ','.join(str(stats[name]) for name, title in self.fields)
+
+    def test_complete(self, **kw):
+        self.file.close()
+
+
 class BarSeries(TestMonitor):
     def __init__(self, graph, name, offset, color):
         self.graph = graph
@@ -489,18 +502,19 @@ if __name__ == '__main__':
 
         numa_policy = numa.NumaPolicy(numa_distance)
 
+        # Create a display-specific data series to monitor the test results
         test = suite.create()
-        test.add_monitor(display.add_series(interface))
+        monitor = display.add_series(interface)
+        test.add_monitor(monitor)
+
+        # Create a CSV file to save the output
+        csv = CSVFile(interface.lower() + '.csv', csv_fields)
+        test.add_monitor(csv)
+
         stream = factory.create('octet', numa_policy.next())
         try:
-            stats, average = test.run(stream)
+            test.run(stream)
         finally:
             stream.terminate()
-
-        filename = interface.lower()+'.csv'
-        with open(filename, 'w') as f:
-            print >>f, ','.join(title for name, title in csv_fields)
-            for s in stats.samples:
-                print >>f, ','.join(str(s[name]) for name, title in csv_fields)
 
     display.wait()
