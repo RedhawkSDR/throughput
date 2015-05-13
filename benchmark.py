@@ -158,7 +158,7 @@ class TestMonitor(object):
     def pass_started(self, **kw):
         pass
 
-    def add_sample(self, **kw):
+    def sample_added(self, **kw):
         pass
 
     def pass_complete(self, **kw):
@@ -180,12 +180,12 @@ class TextDisplay(TestMonitor):
         sys.stdout.write(to_binary(size))
         sys.stdout.flush()
 
-    def add_sample(self, **kw):
+    def sample_added(self, **kw):
         sys.stdout.write('.')
         sys.stdout.flush()
 
-    def pass_complete(self, **kw):
-        sys.stdout.write('\n')
+    def pass_complete(self, rate, dev, **kw):
+        print '%s GBps (%.1f%%)' % (to_gbps(rate), 100.0*dev/rate)
 
     def wait(self):
         pass
@@ -200,7 +200,7 @@ class CSVOutput(TestMonitor):
         self.file = open(filename, 'w')
         print >>self.file, ','.join(title for name, title in self.fields)
 
-    def add_sample(self, **stats):
+    def sample_added(self, **stats):
         print >>self.file, ','.join(str(stats[name]) for name, title in self.fields)
 
     def test_complete(self, **kw):
@@ -296,7 +296,7 @@ class BenchmarkTest(object):
 
     def sample_added(self, **kw):
         for monitor in self.monitors:
-            monitor.add_sample(**kw)
+            monitor.sample_added(**kw)
 
     def add_idle_task(self, task):
         self.__idle_tasks.append(task)
