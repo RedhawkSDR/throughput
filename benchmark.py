@@ -314,21 +314,21 @@ class TransferSizeTest(BenchmarkTest):
         self.window_size = window_size
         self.tolerance = tolerance
 
-    def run(self, name, test):
+    def run(self, name, stream):
         stats = Statistics()
         window = Averager(stats, self.window_size)
 
         average = Statistics()
 
-        reader_stats = ProcessInfo(test.get_reader())
-        writer_stats = ProcessInfo(test.get_writer())
+        reader_stats = ProcessInfo(stream.get_reader())
+        writer_stats = ProcessInfo(stream.get_writer())
 
         num_cpus = sum(len(numa.get_cpus(n)) for n in numa.get_nodes())
         cpu_info = CpuInfo()
 
         self.test_started(name=name)
 
-        test.start()
+        stream.start()
 
         start = time.time()
         next = start + self.poll_time
@@ -340,7 +340,7 @@ class TransferSizeTest(BenchmarkTest):
         for transfer_size in self.sizes:
             self.pass_started(size=transfer_size)
 
-            test.transfer_size(transfer_size)
+            stream.transfer_size(transfer_size)
             window.reset()
 
             # Wait until window is stable (or it's taken long enough that we can
@@ -361,7 +361,7 @@ class TransferSizeTest(BenchmarkTest):
                 last_time = now
 
                 # Calculate average throughput over the sample period
-                current_total = test.received
+                current_total = stream.received()
                 delta = current_total - last_total
                 last_total = current_total
                 current_rate = delta / elapsed
@@ -407,7 +407,7 @@ class TransferSizeTest(BenchmarkTest):
 
             self.pass_complete(**sample)
 
-        test.stop()
+        stream.stop()
 
         self.test_complete(stats=stats, average=average)
 

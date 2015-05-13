@@ -34,7 +34,6 @@ class CorbaThroughputTest(object):
     def transfer_size(self, size):
         self.writer.transfer_length(size)
 
-    @property
     def received(self):
         return self.reader.received()
 

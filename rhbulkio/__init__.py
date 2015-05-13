@@ -44,7 +44,6 @@ class BulkioThroughputTest(object):
     def transfer_size(self, size):
         self.writer.transfer_length = size
 
-    @property
     def received(self):
         return int(self.reader.received)
 

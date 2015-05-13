@@ -49,7 +49,6 @@ class RawThroughputTest(object):
         self.writer_control.transfer_size.value = size
         self.reader_control.transfer_size.value = size
 
-    @property
     def received(self):
         return self.reader_control.total_bytes.value
 
