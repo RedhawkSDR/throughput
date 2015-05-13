@@ -161,12 +161,23 @@ class ProgressMonitor(object):
         sys.stdout.write('\n')
 
 
-class TextDisplay(object):
-    def add_results(self, name, stats, average):
+class TextSeries(object):
+    def __init__(self, name):
+        self.name = name
+
+    def test_complete(self, stats, average):
         best = average.get_max_sample('rate')
         print 'Average:', to_binary(best['size']), to_gbps(best['rate'])
         peak = stats.get_max_sample('rate')
         print 'Peak:   ', to_binary(peak['size']), to_gbps(peak['rate'])
+
+    def add_sample(self, **kw):
+        pass
+
+
+class TextDisplay(object):
+    def add_series(self, name):
+        return TextSeries(name)
 
     def update(self):
         pass
@@ -175,8 +186,21 @@ class TextDisplay(object):
         pass
 
 
-class PlotDisplay(object):
-    def __init__(self):
+class BarSeries(object):
+    def __init__(self, graph, offset, color):
+        self.graph = graph
+        self.offset = offset
+        self.color = color
+
+    def add_sample(self, size, rate, dev, **kw):
+        self.graph.draw_bar(size, rate, dev, self.offset, self.color)
+
+    def test_complete(self, stats, average):
+        pass
+
+
+class BarGraph(object):
+    def __init__(self, bins):
         from matplotlib import pyplot
         globals()['pyplot'] = pyplot
 
@@ -186,31 +210,35 @@ class PlotDisplay(object):
         # Create a bar graph of average throughput vs. transfer size
         self.bar_plot = self.figure.add_subplot(111)
         self.bar_plot.set_xlabel('Transfer size')
-        self.bar_plot.set_ylabel('Throughput (bps)')
-
-        self.figure.show()
+        self.bar_plot.set_ylabel('Throughput (Bps)')
 
         self.width = 1.0/3.0
         self.offset = 0.0
         self.colors = itertools.cycle('bgrcmyk')
 
-    def add_results(self, name, stats, average):
-        sizes = average.get_field('size')
-        rates = average.get_field('rate')
-        dev = average.get_field('dev')
-        self.bar_plot.bar(numpy.arange(len(sizes))+self.offset, rates, color=self.colors.next(), width=self.width, yerr=dev, ecolor='black')
-        self.bar_plot.set_xticks(numpy.arange(len(sizes))+0.5)
-        self.bar_plot.set_xticklabels([to_binary(s) for s in sizes])
-        self.offset += self.width
+        self.bins = dict((bin, index) for index, bin in enumerate(bins))
+        self.bar_plot.set_xticks(numpy.arange(len(self.bins))+0.5)
+        self.bar_plot.set_xticklabels([to_binary(b) for b in bins])
+        self.bar_plot.set_xbound(0.0, len(self.bins))
 
-        self.figure.canvas.draw()
-        self.figure.canvas.flush_events()
+        self.figure.show()
+
+    def add_series(self, name):
+        offset = self.offset
+        self.offset += self.width
+        return BarSeries(self, offset, self.colors.next())
 
     def wait(self):
         pyplot.show()
 
     def update(self):
         self.figure.canvas.flush_events()
+
+    def draw_bar(self, bin, value, dev, offset, color):
+        pos = self.bins[bin] + offset
+        self.bar_plot.bar([pos], [value], color=color, width=self.width, yerr=dev, ecolor='black')
+        self.bar_plot.set_xbound(0.0, len(self.bins))
+        self.figure.canvas.draw()
 
 
 class TransferSizeTest(object):
@@ -224,13 +252,17 @@ class TransferSizeTest(object):
     def add_idle_task(self, task):
         self.__idle_tasks.append(task)
 
-    def run(self, test, monitor):
+    def run(self, test, monitor, avg_monitor):
         stats = Statistics()
         window = Averager(stats, self.window_size)
 
-        stats.add_listener(monitor)
+        if monitor:
+            stats.add_listener(monitor)
 
         average = Statistics()
+
+        if avg_monitor:
+            average.add_listener(avg_monitor)
 
         reader_stats = ProcessInfo(test.get_reader())
         writer_stats = ProcessInfo(test.get_writer())
@@ -318,6 +350,9 @@ class TransferSizeTest(object):
 
         test.stop()
 
+        if avg_monitor:
+            avg_monitor.test_complete(stats, average)
+
         return stats, average
 
     def idle_tasks(self):
@@ -348,11 +383,6 @@ if __name__ == '__main__':
         elif key == '--no-gui':
             nogui = True
 
-    if nogui:
-        display = TextDisplay()
-    else:
-        display = PlotDisplay()
-
     csv_fields = [
         ('time', 'time(s)'),
         ('rate', 'rate(Bps)'),
@@ -377,6 +407,11 @@ if __name__ == '__main__':
 
     # Try powers of two from 16K to 32M
     transfer_sizes = [2**x for x in xrange(14, 26)]
+    if nogui:
+        display = TextDisplay()
+    else:
+        display = BarGraph(transfer_sizes)
+
     test = TransferSizeTest(transfer_sizes, poll_time, window_size, tolerance)
     test.add_idle_task(display.update)
 
@@ -393,11 +428,9 @@ if __name__ == '__main__':
 
         stream = factory.create('octet', numa_policy.next())
         try:
-            stats, average = test.run(stream, ProgressMonitor())
+            stats, average = test.run(stream, ProgressMonitor(), display.add_series(interface))
         finally:
             stream.terminate()
-
-        display.add_results(interface, stats, average)
 
         filename = interface.lower()+'.csv'
         with open(filename, 'w') as f:
