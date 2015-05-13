@@ -187,9 +187,6 @@ class TextDisplay(TestMonitor):
     def pass_complete(self, **kw):
         sys.stdout.write('\n')
 
-    def update(self):
-        pass
-
     def wait(self):
         pass
 
@@ -271,28 +268,12 @@ class BarGraph(TestMonitor):
         self.figure.canvas.draw()
 
 
-class TransferSizeSuite(object):
-    def __init__(self, sizes, poll_time, window_size, tolerance):
-        self.sizes = sizes
-        self.poll_time = poll_time
-        self.window_size = window_size
-        self.tolerance = tolerance
-        self.__idle_tasks = []
-
-    def add_idle_task(self, task):
-        self.__idle_tasks.append(task)
-
-    def create(self):
-        return TransferSizeTest(self, self.sizes, self.poll_time, self.window_size, self.tolerance)
-
-    def idle_tasks(self):
-        for task in self.__idle_tasks:
-            task()
 
 
 class BenchmarkTest(object):
     def __init__(self):
         self.monitors = []
+        self.__idle_tasks = []
 
     def add_monitor(self, monitor):
         self.monitors.append(monitor)
@@ -317,11 +298,17 @@ class BenchmarkTest(object):
         for monitor in self.monitors:
             monitor.add_sample(**kw)
 
+    def add_idle_task(self, task):
+        self.__idle_tasks.append(task)
+
+    def idle_tasks(self):
+        for task in self.__idle_tasks:
+            task()
+
 
 class TransferSizeTest(BenchmarkTest):
-    def __init__(self, suite, sizes, poll_time, window_size, tolerance):
+    def __init__(self, sizes, poll_time, window_size, tolerance):
         BenchmarkTest.__init__(self)
-        self.suite = suite
         self.sizes = sizes
         self.poll_time = poll_time
         self.window_size = window_size
@@ -360,7 +347,7 @@ class TransferSizeTest(BenchmarkTest):
             # assume it will never stabilize) to make decisions
             while not window.is_stable(self.tolerance):
                 # Allow UI to update, etc.
-                self.suite.idle_tasks()
+                self.idle_tasks()
 
                 # Wait until next scheduled poll time
                 sleep_time = next - time.time()
@@ -474,15 +461,17 @@ if __name__ == '__main__':
 
     # Try powers of two from 16K to 32M
     transfer_sizes = [2**x for x in xrange(14, 26)]
+    test = TransferSizeTest(transfer_sizes, poll_time, window_size, tolerance)
+
     if nogui:
         display = TextDisplay()
     else:
         display = BarGraph(transfer_sizes)
-
-    suite = TransferSizeSuite(transfer_sizes, poll_time, window_size, tolerance)
-    suite.add_idle_task(display.update)
+        test.add_idle_task(display.update)
+    test.add_monitor(display)
 
     csv = CSVOutput(csv_fields)
+    test.add_monitor(csv)
 
     for interface in ('Raw', 'CORBA', 'BulkIO'):
         if interface == 'Raw':
@@ -493,13 +482,6 @@ if __name__ == '__main__':
             factory = bulkio.factory(transport)
 
         numa_policy = numa.NumaPolicy(numa_distance)
-
-        # Create a display-specific data series to monitor the test results
-        test = suite.create()
-        test.add_monitor(display)
-
-        # Create a CSV file to save the output
-        test.add_monitor(csv)
 
         stream = factory.create('octet', numa_policy.next())
         try:
