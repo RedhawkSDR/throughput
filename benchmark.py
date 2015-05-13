@@ -207,13 +207,6 @@ class CSVOutput(TestMonitor):
         self.file.close()
 
 
-class BarSeries(object):
-    def __init__(self, name, offset, color):
-        self.name = name
-        self.offset = offset
-        self.color = color
-
-
 class BarGraph(TestMonitor):
     def __init__(self, bins):
         from matplotlib import pyplot
@@ -240,20 +233,20 @@ class BarGraph(TestMonitor):
         self.figure.show()
 
     def test_started(self, name, **kw):
-        offset = len(self.series)
-        self.series.append(BarSeries(name, offset, self.colors.next()))
+        self.series.append({'name':name, 'color':self.colors.next()})
 
         # Create an updated legend. There are no bars for this series yet;
         # create an otherwise unused rectangle to provide the color for each
         # series.
         from matplotlib.patches import Rectangle
-        bars = [Rectangle((0,0),0,0,facecolor=s.color) for s in self.series]
-        names = [s.name for s in self.series]
+        bars = [Rectangle((0,0),0,0,facecolor=s['color']) for s in self.series]
+        names = [s['name'] for s in self.series]
         self.bar_plot.legend(bars, names, loc='upper left')
 
     def pass_complete(self, size, rate, dev, **kw):
-        series = self.series[-1]
-        self.draw_bar(size, rate, dev, series.offset, series.color)
+        offset = len(self.series) - 1
+        color = self.series[offset]['color']
+        self.draw_bar(size, rate, dev, offset, color)
 
     def wait(self):
         pyplot.show()
@@ -266,8 +259,6 @@ class BarGraph(TestMonitor):
         bar = self.bar_plot.bar([pos], [value], color=color, width=self.width, yerr=dev, ecolor='black')
         self.bar_plot.set_xbound(0.0, len(self.bins))
         self.figure.canvas.draw()
-
-
 
 
 class BenchmarkTest(object):
