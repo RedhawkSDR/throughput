@@ -14,8 +14,9 @@ PREPARE_LOGGING(writer_i)
 writer_i::writer_i(const char *uuid, const char *label) :
     writer_base(uuid, label)
 {
-	BULKIO::StreamSRI sri = bulkio::sri::create("test_stream");
-	dataOctet_out->pushSRI(sri);
+    BULKIO::StreamSRI sri = bulkio::sri::create("test_stream");
+    sri.blocking = true;
+    dataOctet_out->pushSRI(sri);
 }
 
 writer_i::~writer_i()
@@ -159,13 +160,13 @@ writer_i::~writer_i()
 ************************************************************************************************/
 int writer_i::serviceFunction()
 {
-	size_t buffer_size = transfer_length;
-	if (buffer.size() != buffer_size) {
-		buffer.resize(buffer_size);
-	}
-    
-	BULKIO::PrecisionUTCTime tstamp = bulkio::time::utils::now();
-	dataOctet_out->pushPacket(buffer, tstamp, false, "test_stream");
+    size_t buffer_size = transfer_length;
+    if (buffer.size() != buffer_size) {
+        buffer.resize(buffer_size);
+    }
+
+    BULKIO::PrecisionUTCTime tstamp = bulkio::time::utils::now();
+    dataOctet_out->pushPacket(buffer, tstamp, false, "test_stream");
 
     return NORMAL;
 }
