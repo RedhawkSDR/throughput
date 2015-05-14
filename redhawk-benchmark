@@ -84,11 +84,11 @@ class TextDisplay(TestMonitor):
         sys.stdout.write('.')
         sys.stdout.flush()
 
-    def pass_complete(self, size, rate, dev, **kw):
+    def pass_complete(self, size, rate, rate_min, rate_max, **kw):
         if rate > self.best_rate:
             self.best_size = size
             self.best_rate = rate
-        print '%s GBps (%.1f%%)' % (to_gbps(rate), 100.0*dev/rate)
+        print '%s GBps (%s,%s)' % (to_gbps(rate), to_gbps(rate_min), to_gbps(rate_max))
 
     def wait(self):
         pass
@@ -149,10 +149,11 @@ class BarGraph(TestMonitor):
         names = [s['name'] for s in self.series]
         self.bar_plot.legend(bars, names, loc='upper left')
 
-    def pass_complete(self, size, rate, dev, **kw):
+    def pass_complete(self, size, rate, rate_min, rate_max, **kw):
         offset = len(self.series) - 1
         color = self.series[offset]['color']
-        self.draw_bar(size, rate, dev, offset, color)
+        error = (rate-rate_min,rate_max-rate)
+        self.draw_bar(size, rate, error, offset, color)
 
     def wait(self):
         pyplot.show()
@@ -160,9 +161,23 @@ class BarGraph(TestMonitor):
     def update(self):
         self.figure.canvas.flush_events()
 
-    def draw_bar(self, bin, value, dev, offset, color):
+    def draw_bar(self, bin, value, error, offset, color):
         pos = self.bins[bin] + (offset*self.width)
-        bar = self.bar_plot.bar([pos], [value], color=color, width=self.width, yerr=dev, ecolor='black')
+        self.bar_plot.bar([pos], [value], color=color, width=self.width)
+
+        # Since bar() only supports singular values for yerr, asymmetric upper
+        # and lower bounds require calling errorbar() directly
+        try:
+            # Try to unpack the lower and upper error values and repack them in
+            # the format errorbar() expects
+            lower, upper = error
+            error = [[lower], [upper]]
+        except:
+            # Assume it's a single value
+            pass
+        center = pos + (self.width/2)
+        self.bar_plot.errorbar([center], [value], yerr=error, ecolor='black')
+
         self.bar_plot.set_xbound(0.0, len(self.bins))
         self.figure.canvas.draw()
 
@@ -232,8 +247,11 @@ class Averager(object):
     def mean(self):
         return numpy.mean(self.get_data())
 
-    def std(self):
-        return numpy.std(self.get_data())
+    def minimum(self):
+        return min(self.get_data())
+
+    def maximum(self):
+        return max(self.get_data())
 
     def length(self):
         return len(self.values)
@@ -328,10 +346,11 @@ class TransferSizeTest(BenchmarkTest):
                 self.sample_added(**sample)
 
             # The current pass is complete, notify monitors of the average rate
-            # and deviation
-            sample = {'rate': window.mean(),
-                      'size': transfer_size,
-                      'dev':  window.std()}
+            # and min/max
+            sample = {'size': transfer_size,
+                      'rate': window.mean(),
+                      'rate_min': window.minimum(),
+                      'rate_max': window.maximum()}
 
             self.pass_complete(**sample)
 
