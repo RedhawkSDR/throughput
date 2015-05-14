@@ -3,8 +3,9 @@ import time
 import getopt
 
 import numa
-import raw
-import corba
+
+from streams import raw, corba, bulkio
+from streams.aggregate import AggregateStream
 
 def samples_to_int(value):
     scale = 1
@@ -60,24 +61,24 @@ if __name__ == '__main__':
         factory = raw.factory(transport)
     elif interface == 'corba':
         factory = corba.factory(transport)
+    elif interface == 'bulkio':
+        factory = bulkio.factory(transport)
     else:
         raise SystemExit('No interface '+interface)
 
-    tests = [factory.create(data_format, transfer_size, numa_policy.next()) for ii in xrange(count)]
+    streams = AggregateStream(factory, data_format, numa_policy, count)
+    streams.transfer_size(transfer_size)
 
     start = time.time()
-    for test in tests:
-        test.start()
+    streams.start()
     time.sleep(time_period)
-    for test in tests:
-        test.stop()
+    streams.stop()
     elapsed = time.time() - start
 
     aggregate_throughput = 0.0
-    for test in tests:
-        read_count = test.received
-        test.terminate()
-        aggregate_throughput += read_count/elapsed
+    read_count = streams.received()
+    streams.terminate()
+    aggregate_throughput += read_count/elapsed
 
     print 'Elapsed:', elapsed, 'sec'
     print 'Throughput:', aggregate_throughput / (1024**3), 'GBps'
