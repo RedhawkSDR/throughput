@@ -45,7 +45,12 @@ class TextDisplay(TestMonitor):
 
 class BarGraph(TestMonitor):
     def __init__(self, bins):
-        self.figure = pyplot.figure()
+        # Quiet the warning about GTK Tooltip deprecation
+        import warnings
+        with warnings.catch_warnings():
+            warnings.filterwarnings('ignore', category=DeprecationWarning)
+            self.figure = pyplot.figure()
+
         self.figure.canvas.set_window_title('REDHAWK Benchmark')
 
         # Create a bar graph of average throughput vs. transfer size
