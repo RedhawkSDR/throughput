@@ -6,8 +6,7 @@ import numa
 
 from streams import raw, corba, bulkio
 from streams.aggregate import AggregateStream
-
-from utils import samples_to_int, time_to_sec
+import utils
 
 if __name__ == '__main__':
     transfer_size = 1024
@@ -23,9 +22,9 @@ if __name__ == '__main__':
         if key == '-n':
             count = int(value)
         elif key == '-s':
-            transfer_size = samples_to_int(value)
+            transfer_size = utils.from_binary(value)
         elif key == '-t':
-            time_period = time_to_sec(value)
+            time_period = utils.time_to_sec(value)
         elif key == '--transport':
             transport = value
         elif key == '--numa-distance':

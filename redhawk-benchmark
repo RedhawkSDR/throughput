@@ -90,7 +90,7 @@ class BarGraph(TestMonitor):
 
         # Create a bar graph of average throughput vs. transfer size
         self.bar_plot = self.figure.add_subplot(111)
-        self.bar_plot.set_xlabel('Transfer size')
+        self.bar_plot.set_xlabel('Transfer size (B)')
         self.bar_plot.set_ylabel('Throughput (Bps)')
 
         self.width = 1.0/3.0
