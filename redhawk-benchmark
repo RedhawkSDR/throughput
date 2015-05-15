@@ -3,7 +3,6 @@
 import sys
 import time
 import getopt
-import math
 import numpy
 import itertools
 
@@ -66,8 +65,20 @@ class BarGraph(TestMonitor):
 
         self.figure.show()
 
+    def update_progress(self):
+        series = self.series[-1]
+        name = series['name']
+        progress = 100.0*series['progress']/len(self.bins)
+        self.bar_plot.set_title('Measuring %s (%.1f%%)' % (name, progress))
+
     def test_started(self, name, **kw):
-        self.series.append({'name':name, 'color':self.colors.next()})
+        series = {
+            'name':name,
+            'color':self.colors.next(),
+            'offset':len(self.series),
+            'progress':0
+            }
+        self.series.append(series)
 
         # Create an updated legend. There are no bars for this series yet;
         # create an otherwise unused rectangle to provide the color for each
@@ -77,13 +88,22 @@ class BarGraph(TestMonitor):
         names = [s['name'] for s in self.series]
         self.bar_plot.legend(bars, names, loc='upper left')
 
+        self.update_progress()
+
     def pass_complete(self, size, rate, rate_min, rate_max, **kw):
-        offset = len(self.series) - 1
-        color = self.series[offset]['color']
+        series = self.series[-1]
+        series['progress'] += 1
+        self.update_progress()
+
+        offset = series['offset']
+        color = series['color']
         error = (rate-rate_min,rate_max-rate)
         self.draw_bar(size, rate, error, offset, color)
 
     def wait(self):
+        # Clear the title
+        self.bar_plot.set_title('')
+        self.figure.canvas.draw()
         pyplot.show()
 
     def update(self):
@@ -156,6 +176,7 @@ class TransferSizeTest(BenchmarkTest):
         self.poll_time = poll_time
         self.window_size = window_size
         self.tolerance = tolerance
+        self.num_cpus = sum(len(numa.get_cpus(n)) for n in numa.get_nodes())
 
     def run(self, name, stream):
         window = Averager(self.window_size)
@@ -163,7 +184,6 @@ class TransferSizeTest(BenchmarkTest):
         reader_stats = ProcessInfo(stream.get_reader())
         writer_stats = ProcessInfo(stream.get_writer())
 
-        num_cpus = sum(len(numa.get_cpus(n)) for n in numa.get_nodes())
         cpu_info = CpuInfo()
 
         self.test_started(name=name)
@@ -216,7 +236,7 @@ class TransferSizeTest(BenchmarkTest):
                 writer = writer_stats.poll()
 
                 system = cpu_info.poll()
-                sys_cpu = num_cpus * 100.0 / sum(system.values())
+                sys_cpu = self.num_cpus * 100.0 / sum(system.values())
 
                 sample = {'time': now-start,
                           'rate': current_rate,
