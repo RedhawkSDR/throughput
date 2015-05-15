@@ -8,10 +8,8 @@ import numpy
 import itertools
 
 from streams import raw, corba, bulkio
-import numa
-from procinfo import CpuInfo, ProcessInfo
-import utils
-
+from benchmark import utils, numa
+from benchmark.procinfo import CpuInfo, ProcessInfo
 
 class TestMonitor(object):
     def test_started(self, **kw):

@@ -2,11 +2,9 @@ import sys
 import time
 import getopt
 
-import numa
-
 from streams import raw, corba, bulkio
 from streams.aggregate import AggregateStream
-import utils
+from benchmark import utils, numa
 
 if __name__ == '__main__':
     transfer_size = 1024
