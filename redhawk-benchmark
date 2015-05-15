@@ -46,9 +46,6 @@ class TextDisplay(TestMonitor):
 
 class BarGraph(TestMonitor):
     def __init__(self, bins):
-        from matplotlib import pyplot
-        globals()['pyplot'] = pyplot
-
         self.figure = pyplot.figure()
         self.figure.canvas.set_window_title('REDHAWK Benchmark')
 
@@ -287,6 +284,7 @@ if __name__ == '__main__':
     if nogui:
         display = TextDisplay()
     else:
+        from matplotlib import pyplot
         display = BarGraph(transfer_sizes)
         test.add_idle_task(display.update)
     test.add_monitor(display)
