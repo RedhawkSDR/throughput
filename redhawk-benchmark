@@ -11,6 +11,7 @@ from streams import raw, corba, bulkio
 from benchmark import utils, numa
 from benchmark.procinfo import CpuInfo, ProcessInfo
 from benchmark.tests import TestMonitor, BenchmarkTest
+from benchmark.csv import CSVOutput
 
 class TextDisplay(TestMonitor):
     def test_started(self, name, **kw):
@@ -41,25 +42,6 @@ class TextDisplay(TestMonitor):
 
     def wait(self):
         pass
-
-
-class CSVOutput(TestMonitor):
-    def __init__(self):
-        self.fields = []
-
-    def add_field(self, key, header):
-        self.fields.append((key, header))
-
-    def test_started(self, name, **kw):
-        filename = name.lower() + '.csv'
-        self.file = open(filename, 'w')
-        print >>self.file, ','.join(title for name, title in self.fields)
-
-    def sample_added(self, **stats):
-        print >>self.file, ','.join(str(stats[name]) for name, title in self.fields)
-
-    def test_complete(self, **kw):
-        self.file.close()
 
 
 class BarGraph(TestMonitor):
