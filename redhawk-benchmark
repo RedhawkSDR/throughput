@@ -7,43 +7,10 @@ import math
 import numpy
 import itertools
 
+from streams import raw, corba, bulkio
 import numa
 from procinfo import CpuInfo, ProcessInfo
-
-from streams import raw, corba, bulkio
-
-def samples_to_int(value):
-    scale = 1
-    if value[-1].isalpha():
-        suffix = value[-1].lower()
-        value = value[:-1]
-        if suffix == 'k':
-            scale = 1024
-        elif suffix == 'm':
-            scale = 1024**2
-    return int(value)*scale
-
-def time_to_sec(value):
-    scale = 1.0
-    if value[-1].isalpha():
-        suffix = value[-1].lower()
-        value = value[:-1]
-        if suffix == 'm':
-            scale = 60.0
-        elif suffix == 's':
-            scale = 1.0
-    return float(value)*scale
-
-def to_gbps(value):
-    return '%.2f' % (value/(1024**3))
-
-def to_percent(value):
-    return '%.1f' % (value*100.0)
-
-def to_binary(value):
-    suffixes = [ '', 'KB', 'MB', 'GB' ]
-    index = int(math.floor(math.log(value, 1024)))
-    return '%d%s' % (value/math.pow(1024, index), suffixes[index])
+import utils
 
 
 class TestMonitor(object):
@@ -70,11 +37,11 @@ class TextDisplay(TestMonitor):
         print 'Measuring', name
 
     def test_complete(self, **kw):
-        print 'Average:', to_binary(self.best_size), to_gbps(self.best_rate)
-        print 'Peak:   ', to_binary(self.peak_size), to_gbps(self.peak_rate)
+        print 'Average:', utils.to_binary(self.best_size), utils.to_gbps(self.best_rate)
+        print 'Peak:   ', utils.to_binary(self.peak_size), utils.to_gbps(self.peak_rate)
 
     def pass_started(self, size, **kw):
-        sys.stdout.write(to_binary(size))
+        sys.stdout.write(utils.to_binary(size))
         sys.stdout.flush()
 
     def sample_added(self, size, rate, **kw):
@@ -88,7 +55,7 @@ class TextDisplay(TestMonitor):
         if rate > self.best_rate:
             self.best_size = size
             self.best_rate = rate
-        print '%s GBps (%s,%s)' % (to_gbps(rate), to_gbps(rate_min), to_gbps(rate_max))
+        print '%s GBps (%s,%s)' % (utils.to_gbps(rate), utils.to_gbps(rate_min), utils.to_gbps(rate_max))
 
     def wait(self):
         pass
@@ -131,7 +98,7 @@ class BarGraph(TestMonitor):
 
         self.bins = dict((bin, index) for index, bin in enumerate(bins))
         self.bar_plot.set_xticks(numpy.arange(len(self.bins))+0.5)
-        self.bar_plot.set_xticklabels([to_binary(b) for b in bins])
+        self.bar_plot.set_xticklabels([utils.to_binary(b) for b in bins])
         self.bar_plot.set_xbound(0.0, len(self.bins))
 
         self.series = []

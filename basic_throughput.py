@@ -7,27 +7,7 @@ import numa
 from streams import raw, corba, bulkio
 from streams.aggregate import AggregateStream
 
-def samples_to_int(value):
-    scale = 1
-    if value[-1].isalpha():
-        suffix = value[-1].lower()
-        value = value[:-1]
-        if suffix == 'k':
-            scale = 1024
-        elif suffix == 'm':
-            scale = 1024**2
-    return int(value)*scale
-
-def time_to_sec(value):
-    scale = 1.0
-    if value[-1].isalpha():
-        suffix = value[-1].lower()
-        value = value[:-1]
-        if suffix == 'm':
-            scale = 60.0
-        elif suffix == 's':
-            scale = 1.0
-    return float(value)*scale
+from utils import samples_to_int, time_to_sec
 
 if __name__ == '__main__':
     transfer_size = 1024
