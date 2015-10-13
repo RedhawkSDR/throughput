@@ -18,7 +18,6 @@
 # along with this program.  If not, see http://www.gnu.org/licenses/.
 #
 import os
-import subprocess
 import itertools
 
 def _parse_range(line):
@@ -51,6 +50,18 @@ def get_distances(node):
 
 def get_distance(node, dest):
     return get_distances(node)[dest]
+
+def is_numa_supported():
+    try:
+        return len(get_nodes()) > 1
+    except:
+        return False
+
+def is_numactl_available():
+    try:
+        return os.system('numactl --hardware > /dev/null 2>&1') == 0
+    except:
+        return False
 
 class NumaWrapper(object):
     def __init__(self, nodes, distance=None):
