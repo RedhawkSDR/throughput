@@ -3,16 +3,16 @@ AM_CPPFLAGS = $(OMNIORB_CFLAGS) -I $(top_srcdir)/common
 
 noinst_PROGRAMS = reader writer
 
-reader_SOURCES = reader.cc rawdataSK.cc
-writer_SOURCES = writer.cc rawdataSK.cc
+reader_SOURCES = reader.cpp rawdataSK.cpp
+writer_SOURCES = writer.cpp rawdataSK.cpp
 
-BUILT_SOURCES = rawdataSK.cc rawdata.hh rawdata/__init__.py
-CLEAN_FILES = $(BUILT_SOURCES)
+BUILT_SOURCES = rawdataSK.cpp rawdata.h rawdata/__init__.py
+CLEANFILES = $(BUILT_SOURCES) rawdata_idl.py
 
-rawdataSK.cc rawdata.hh: idl/rawdata.idl
-	omniidl -bcxx $<
+%SK.cpp %.h: idl/%.idl
+	omniidl -bcxx -Wbh=.h -Wbs=SK.cpp $<
 
-rawdata/__init__.py: idl/rawdata.idl
+%/__init__.py: idl/%.idl
 	omniidl -bpython -C ../.. -Wbpackage=streams.corba $<
 
 clean-local:

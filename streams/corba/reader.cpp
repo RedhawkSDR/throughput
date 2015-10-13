@@ -5,7 +5,7 @@
 
 #include <threaded_deleter.h>
 
-#include "rawdata.hh"
+#include "rawdata.h"
 
 class Reader : public virtual POA_rawdata::reader {
 public:

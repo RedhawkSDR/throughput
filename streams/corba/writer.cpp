@@ -2,7 +2,7 @@
 
 #include <omniORB4/CORBA.h>
 
-#include "rawdata.hh"
+#include "rawdata.h"
 
 class Writer : public virtual POA_rawdata::writer {
 public:
