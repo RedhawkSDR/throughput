@@ -17,16 +17,16 @@
  * You should have received a copy of the GNU Lesser General Public License
  * along with this program.  If not, see http://www.gnu.org/licenses/.
  */
-#ifndef WRITER_IMPL_BASE_H
-#define WRITER_IMPL_BASE_H
+#ifndef WRITER_BASE_IMPL_BASE_H
+#define WRITER_BASE_IMPL_BASE_H
 
 #include <boost/thread.hpp>
-#include <ossie/Resource_impl.h>
+#include <ossie/Component.h>
 #include <ossie/ThreadedComponent.h>
 
 #include <bulkio/bulkio.h>
 
-class writer_base : public Resource_impl, protected ThreadedComponent
+class writer_base : public Component, protected ThreadedComponent
 {
     public:
         writer_base(const char *uuid, const char *label);
@@ -42,11 +42,13 @@ class writer_base : public Resource_impl, protected ThreadedComponent
 
     protected:
         // Member variables exposed as properties
+        /// Property: transfer_length
         CORBA::ULong transfer_length;
 
         // Ports
+        /// Port: dataOctet_out
         bulkio::OutOctetPort *dataOctet_out;
 
     private:
 };
-#endif // WRITER_IMPL_BASE_H
+#endif // WRITER_BASE_IMPL_BASE_H

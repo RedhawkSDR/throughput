@@ -22,7 +22,7 @@ with this program.  If not, see http://www.gnu.org/licenses/.
 <properties>
   <simple id="transfer_length" mode="readwrite" type="ulong">
     <value>1024</value>
-    <kind kindtype="configure"/>
+    <kind kindtype="property"/>
     <action type="external"/>
   </simple>
 </properties>

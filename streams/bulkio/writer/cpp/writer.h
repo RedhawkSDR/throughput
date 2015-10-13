@@ -17,8 +17,8 @@
  * You should have received a copy of the GNU Lesser General Public License
  * along with this program.  If not, see http://www.gnu.org/licenses/.
  */
-#ifndef WRITER_IMPL_H
-#define WRITER_IMPL_H
+#ifndef WRITER_I_IMPL_H
+#define WRITER_I_IMPL_H
 
 #include "writer_base.h"
 
@@ -28,10 +28,13 @@ class writer_i : public writer_base
     public:
         writer_i(const char *uuid, const char *label);
         ~writer_i();
+
+        void constructor();
+
         int serviceFunction();
 
     private:
         std::vector<CORBA::Octet> buffer;
 };
 
-#endif // WRITER_IMPL_H
+#endif // WRITER_I_IMPL_H

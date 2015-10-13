@@ -30,7 +30,7 @@
 ******************************************************************************************/
 
 writer_base::writer_base(const char *uuid, const char *label) :
-    Resource_impl(uuid, label),
+    Component(uuid, label),
     ThreadedComponent()
 {
     loadProperties();
@@ -51,13 +51,13 @@ writer_base::~writer_base()
 *******************************************************************************************/
 void writer_base::start() throw (CORBA::SystemException, CF::Resource::StartError)
 {
-    Resource_impl::start();
+    Component::start();
     ThreadedComponent::startThread();
 }
 
 void writer_base::stop() throw (CORBA::SystemException, CF::Resource::StopError)
 {
-    Resource_impl::stop();
+    Component::stop();
     if (!ThreadedComponent::stopThread()) {
         throw CF::Resource::StopError(CF::CF_NOTSET, "Processing thread did not die");
     }
@@ -72,7 +72,7 @@ void writer_base::releaseObject() throw (CORBA::SystemException, CF::LifeCycle::
         // TODO - this should probably be logged instead of ignored
     }
 
-    Resource_impl::releaseObject();
+    Component::releaseObject();
 }
 
 void writer_base::loadProperties()
@@ -84,7 +84,7 @@ void writer_base::loadProperties()
                 "readwrite",
                 "",
                 "external",
-                "configure");
+                "property");
 
 }
 

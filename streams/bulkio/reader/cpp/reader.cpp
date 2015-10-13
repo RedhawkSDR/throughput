@@ -33,11 +33,19 @@ PREPARE_LOGGING(reader_i)
 reader_i::reader_i(const char *uuid, const char *label) :
     reader_base(uuid, label)
 {
+    // Avoid placing constructor code here. Instead, use the "constructor" function.
 
 }
 
 reader_i::~reader_i()
 {
+}
+
+void reader_i::constructor()
+{
+    /***********************************************************************************
+     This is the RH constructor. All properties are properly initialized before this function is called 
+    ***********************************************************************************/
 }
 
 /***********************************************************************************************
@@ -118,6 +126,30 @@ reader_i::~reader_i()
             myOutput->pushPacket(*output, tmp->T, tmp->EOS, tmp->streamID);
 
         Interactions with non-BULKIO ports are left up to the component developer's discretion
+        
+    Messages:
+    
+        To receive a message, you need (1) an input port of type MessageEvent, (2) a message prototype described
+        as a structure property of kind message, (3) a callback to service the message, and (4) to register the callback
+        with the input port.
+        
+        Assuming a property of type message is declared called "my_msg", an input port called "msg_input" is declared of
+        type MessageEvent, create the following code:
+        
+        void reader_i::my_message_callback(const std::string& id, const my_msg_struct &msg){
+        }
+        
+        Register the message callback onto the input port with the following form:
+        this->msg_input->registerMessage("my_msg", this, &reader_i::my_message_callback);
+        
+        To send a message, you need to (1) create a message structure, (2) a message prototype described
+        as a structure property of kind message, and (3) send the message over the port.
+        
+        Assuming a property of type message is declared called "my_msg", an output port called "msg_output" is declared of
+        type MessageEvent, create the following code:
+        
+        ::my_msg_struct msg_out;
+        this->msg_output->sendMessage(msg_out);
 
     Properties:
         
@@ -147,42 +179,50 @@ reader_i::~reader_i()
             
         Callback methods can be associated with a property so that the methods are
         called each time the property value changes.  This is done by calling 
-        addPropertyChangeListener(<property name>, this, &reader_i::<callback method>)
+        addPropertyListener(<property>, this, &reader_i::<callback method>)
         in the constructor.
 
-        Callback methods should take two arguments, both const pointers to the value
-        type (e.g., "const float *"), and return void.
+        The callback method receives two arguments, the old and new values, and
+        should return nothing (void). The arguments can be passed by value,
+        receiving a copy (preferred for primitive types), or by const reference
+        (preferred for strings, structs and vectors).
 
         Example:
             // This example makes use of the following Properties:
             //  - A float value called scaleValue
+            //  - A struct property called status
             
         //Add to reader.cpp
         reader_i::reader_i(const char *uuid, const char *label) :
             reader_base(uuid, label)
         {
-            addPropertyChangeListener("scaleValue", this, &reader_i::scaleChanged);
+            addPropertyListener(scaleValue, this, &reader_i::scaleChanged);
+            addPropertyListener(status, this, &reader_i::statusChanged);
         }
 
-        void reader_i::scaleChanged(const float *oldValue, const float *newValue)
+        void reader_i::scaleChanged(float oldValue, float newValue)
         {
-            std::cout << "scaleValue changed from" << *oldValue << " to " << *newValue
-                      << std::endl;
+            LOG_DEBUG(reader_i, "scaleValue changed from" << oldValue << " to " << newValue);
+        }
+            
+        void reader_i::statusChanged(const status_struct& oldValue, const status_struct& newValue)
+        {
+            LOG_DEBUG(reader_i, "status changed");
         }
             
         //Add to reader.h
-        void scaleChanged(const float* oldValue, const float* newValue);
+        void scaleChanged(float oldValue, float newValue);
+        void statusChanged(const status_struct& oldValue, const status_struct& newValue);
         
 
 ************************************************************************************************/
 int reader_i::serviceFunction()
 {
-	bulkio::OctetDataTransfer* packet = dataOctet_in->getPacket(bulkio::Const::BLOCKING);
-	if (!packet) {
-		return NOOP;
-	}
-	received += packet->dataBuffer.size();
-	delete packet;
-    return NORMAL;
+    bulkio::OctetDataTransfer* packet = dataOctet_in->getPacket(bulkio::Const::BLOCKING);
+    if (!packet) {
+        return NOOP;
+    }
+    received += packet->dataBuffer.size();
+    delete packet;
 }
 

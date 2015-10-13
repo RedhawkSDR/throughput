@@ -33,13 +33,22 @@ PREPARE_LOGGING(writer_i)
 writer_i::writer_i(const char *uuid, const char *label) :
     writer_base(uuid, label)
 {
-    BULKIO::StreamSRI sri = bulkio::sri::create("test_stream");
-    sri.blocking = true;
-    dataOctet_out->pushSRI(sri);
+    // Avoid placing constructor code here. Instead, use the "constructor" function.
+
 }
 
 writer_i::~writer_i()
 {
+}
+
+void writer_i::constructor()
+{
+    /***********************************************************************************
+     This is the RH constructor. All properties are properly initialized before this function is called 
+    ***********************************************************************************/
+    BULKIO::StreamSRI sri = bulkio::sri::create("test_stream");
+    sri.blocking = true;
+    dataOctet_out->pushSRI(sri);
 }
 
 /***********************************************************************************************
@@ -120,6 +129,30 @@ writer_i::~writer_i()
             myOutput->pushPacket(*output, tmp->T, tmp->EOS, tmp->streamID);
 
         Interactions with non-BULKIO ports are left up to the component developer's discretion
+        
+    Messages:
+    
+        To receive a message, you need (1) an input port of type MessageEvent, (2) a message prototype described
+        as a structure property of kind message, (3) a callback to service the message, and (4) to register the callback
+        with the input port.
+        
+        Assuming a property of type message is declared called "my_msg", an input port called "msg_input" is declared of
+        type MessageEvent, create the following code:
+        
+        void writer_i::my_message_callback(const std::string& id, const my_msg_struct &msg){
+        }
+        
+        Register the message callback onto the input port with the following form:
+        this->msg_input->registerMessage("my_msg", this, &writer_i::my_message_callback);
+        
+        To send a message, you need to (1) create a message structure, (2) a message prototype described
+        as a structure property of kind message, and (3) send the message over the port.
+        
+        Assuming a property of type message is declared called "my_msg", an output port called "msg_output" is declared of
+        type MessageEvent, create the following code:
+        
+        ::my_msg_struct msg_out;
+        this->msg_output->sendMessage(msg_out);
 
     Properties:
         
@@ -149,31 +182,40 @@ writer_i::~writer_i()
             
         Callback methods can be associated with a property so that the methods are
         called each time the property value changes.  This is done by calling 
-        addPropertyChangeListener(<property name>, this, &writer_i::<callback method>)
+        addPropertyListener(<property>, this, &writer_i::<callback method>)
         in the constructor.
 
-        Callback methods should take two arguments, both const pointers to the value
-        type (e.g., "const float *"), and return void.
+        The callback method receives two arguments, the old and new values, and
+        should return nothing (void). The arguments can be passed by value,
+        receiving a copy (preferred for primitive types), or by const reference
+        (preferred for strings, structs and vectors).
 
         Example:
             // This example makes use of the following Properties:
             //  - A float value called scaleValue
+            //  - A struct property called status
             
         //Add to writer.cpp
         writer_i::writer_i(const char *uuid, const char *label) :
             writer_base(uuid, label)
         {
-            addPropertyChangeListener("scaleValue", this, &writer_i::scaleChanged);
+            addPropertyListener(scaleValue, this, &writer_i::scaleChanged);
+            addPropertyListener(status, this, &writer_i::statusChanged);
         }
 
-        void writer_i::scaleChanged(const float *oldValue, const float *newValue)
+        void writer_i::scaleChanged(float oldValue, float newValue)
         {
-            std::cout << "scaleValue changed from" << *oldValue << " to " << *newValue
-                      << std::endl;
+            LOG_DEBUG(writer_i, "scaleValue changed from" << oldValue << " to " << newValue);
+        }
+            
+        void writer_i::statusChanged(const status_struct& oldValue, const status_struct& newValue)
+        {
+            LOG_DEBUG(writer_i, "status changed");
         }
             
         //Add to writer.h
-        void scaleChanged(const float* oldValue, const float* newValue);
+        void scaleChanged(float oldValue, float newValue);
+        void statusChanged(const status_struct& oldValue, const status_struct& newValue);
         
 
 ************************************************************************************************/

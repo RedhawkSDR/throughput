@@ -17,8 +17,8 @@
  * You should have received a copy of the GNU Lesser General Public License
  * along with this program.  If not, see http://www.gnu.org/licenses/.
  */
-#ifndef READER_IMPL_H
-#define READER_IMPL_H
+#ifndef READER_I_IMPL_H
+#define READER_I_IMPL_H
 
 #include "reader_base.h"
 
@@ -28,7 +28,10 @@ class reader_i : public reader_base
     public:
         reader_i(const char *uuid, const char *label);
         ~reader_i();
+
+        void constructor();
+
         int serviceFunction();
 };
 
-#endif // READER_IMPL_H
+#endif // READER_I_IMPL_H

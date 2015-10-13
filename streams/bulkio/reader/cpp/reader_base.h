@@ -17,16 +17,16 @@
  * You should have received a copy of the GNU Lesser General Public License
  * along with this program.  If not, see http://www.gnu.org/licenses/.
  */
-#ifndef READER_IMPL_BASE_H
-#define READER_IMPL_BASE_H
+#ifndef READER_BASE_IMPL_BASE_H
+#define READER_BASE_IMPL_BASE_H
 
 #include <boost/thread.hpp>
-#include <ossie/Resource_impl.h>
+#include <ossie/Component.h>
 #include <ossie/ThreadedComponent.h>
 
 #include <bulkio/bulkio.h>
 
-class reader_base : public Resource_impl, protected ThreadedComponent
+class reader_base : public Component, protected ThreadedComponent
 {
     public:
         reader_base(const char *uuid, const char *label);
@@ -42,11 +42,13 @@ class reader_base : public Resource_impl, protected ThreadedComponent
 
     protected:
         // Member variables exposed as properties
+        /// Property: received
         CORBA::ULongLong received;
 
         // Ports
+        /// Port: dataOctet_in
         bulkio::InOctetPort *dataOctet_in;
 
     private:
 };
-#endif // READER_IMPL_BASE_H
+#endif // READER_BASE_IMPL_BASE_H
