@@ -38,11 +38,8 @@ Options:
 \t-t <time>\t\tTime between samples, in seconds [0.25]
 \t-w <num>\t\tMinimum number of samples per measurement [5]
 \t-d <std deviations>\tTolerance for measurement stability [0.1]
-\t--numa-distance=<n>\tNumber of NUMA hops between components; by
-\t\t\t\tdefault, it is left up to the Linux scheduler,
-\t\t\t\twhich may move the processes around non-
-\t\t\t\tdeterministically. A value of 0 puts both
-\t\t\t\tcomponents on the same NUMA socket.
+\t--numa-distance=<n>\tNumber of NUMA hops between components, if
+\t\t\t\tsupported [0]
 \t--no-gui\t\tDisplay text results only
 \t--transport=<type>\tTransport type ["unix" (default), "tcp"]""" % os.path.basename(sys.argv[0])
 
@@ -375,6 +372,17 @@ if __name__ == '__main__':
     csv.add_field('cpu_softirq', 'soft IRQ CPU(%)')
 
     test.add_monitor(csv)
+
+    if numa.is_numa_supported():
+        print '%d NUMA sockets' % len(numa.get_nodes())
+        if numa_distance is None:
+            numa_distance = 0
+        if not numa.is_numactl_available():
+            print 'WARNING: numactl is not available'
+            numa_distance = None
+    else:
+        print 'No NUMA support'
+        numa_distance = None
 
     for interface in ('Raw', 'CORBA', 'BulkIO'):
         if interface == 'Raw':
