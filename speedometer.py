@@ -142,6 +142,7 @@ if __name__ == '__main__':
     run_time = 30.0
     nogui = False
     interface = 'bulkio'
+    transfer_size = 1*1024*1024
 
     opts, args = getopt.getopt(sys.argv[1:], 's:t:p:', ['interface=', 'transport=', 'numa-distance=', 'no-gui'])
     for key, value in opts:
