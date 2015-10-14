@@ -224,5 +224,5 @@ int reader_i::serviceFunction()
     }
     received += packet->dataBuffer.size();
     delete packet;
+    return NORMAL;
 }
-
