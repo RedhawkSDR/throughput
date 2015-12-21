@@ -17,13 +17,15 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with this program.  If not, see http://www.gnu.org/licenses/.
 #
-AM_LDFLAGS = $(OMNIORB_LIBS)
 AM_CPPFLAGS = $(OMNIORB_CFLAGS) -I $(top_srcdir)/common
 
 noinst_PROGRAMS = reader writer
 
 reader_SOURCES = reader.cpp rawdataSK.cpp
 writer_SOURCES = writer.cpp rawdataSK.cpp
+
+reader_LDADD = $(OMNIORB_LIBS)
+writer_LDADD = $(OMNIORB_LIBS)
 
 BUILT_SOURCES = rawdataSK.cpp rawdata.h rawdata/__init__.py
 CLEANFILES = $(BUILT_SOURCES) rawdata_idl.py
