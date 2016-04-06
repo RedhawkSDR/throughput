@@ -17,8 +17,10 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with this program.  If not, see http://www.gnu.org/licenses/.
 #
-AM_LDFLAGS = -lrt $(OMNITHREAD_LIBS)
+AM_LDFLAGS = -lrt 
 AM_CPPFLAGS = $(OMNITHREAD_CFLAGS) -I $(top_srcdir)/common
+reader_LDADD = $(OMNITHREAD_LIBS)
+writer_LDADD = $(OMNITHREAD_LIBS)
 
 noinst_PROGRAMS = reader writer
 

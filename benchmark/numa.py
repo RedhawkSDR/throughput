@@ -34,9 +34,13 @@ def _parse_values(line, delim):
     return values
 
 def get_nodes():
-    with open('/sys/devices/system/node/online') as f:
-        line = f.readline().strip()
-        return _parse_values(line, ',')
+    nodes = '[0]'
+    try:
+      with open('/sys/devices/system/node/online') as f:
+          line = f.readline().strip()
+          nodes = _parse_values(line, ',')
+    finally:
+          return nodes
 
 def get_cpus(node):
     with open('/sys/devices/system/node/node%d/cpulist'%node) as f:

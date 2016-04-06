@@ -20,3 +20,5 @@ streams/corba/reader
 streams/corba/writer
 streams/raw/reader
 streams/raw/writer
+*.o
+*.csv

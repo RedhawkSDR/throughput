@@ -25,6 +25,7 @@ import time
 import getopt
 import numpy
 import itertools
+import multiprocessing
 
 from streams import raw, corba, bulkio
 from benchmark import utils, numa
@@ -211,7 +212,7 @@ class TransferSizeTest(BenchmarkTest):
         self.poll_time = poll_time
         self.window_size = window_size
         self.tolerance = tolerance
-        self.num_cpus = sum(len(numa.get_cpus(n)) for n in numa.get_nodes())
+        self.num_cpus = multiprocessing.cpu_count()
 
     def run(self, name, stream):
         window = Averager(self.window_size)
