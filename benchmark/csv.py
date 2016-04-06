@@ -17,6 +17,8 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with this program.  If not, see http://www.gnu.org/licenses/.
 #
+import os
+
 from benchmark.tests import TestMonitor
 
 class CSVOutput(TestMonitor):
@@ -29,7 +31,7 @@ class CSVOutput(TestMonitor):
         self.fields.append((key, header))
 
     def test_started(self, name, **kw):
-        filename = name.lower() + '.csv'
+        filename = '%s-%d.csv' % (name.lower(), os.getpid())
         self.file = open(filename, 'w')
         print >>self.file, ','.join(title for name, title in self.fields)
 
