@@ -46,9 +46,8 @@ void writer_i::constructor()
     /***********************************************************************************
      This is the RH constructor. All properties are properly initialized before this function is called 
     ***********************************************************************************/
-    BULKIO::StreamSRI sri = bulkio::sri::create("test_stream");
-    sri.blocking = true;
-    dataOctet_out->pushSRI(sri);
+    stream = dataOctet_out->createStream("test_stream");
+    stream.blocking(true);
 }
 
 /***********************************************************************************************
@@ -226,8 +225,7 @@ int writer_i::serviceFunction()
         buffer.resize(buffer_size);
     }
 
-    BULKIO::PrecisionUTCTime tstamp = bulkio::time::utils::now();
-    dataOctet_out->pushPacket(buffer, tstamp, false, "test_stream");
+    stream.write(buffer, bulkio::time::utils::now());
 
     return NORMAL;
 }

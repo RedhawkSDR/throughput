@@ -218,11 +218,14 @@ void reader_i::constructor()
 ************************************************************************************************/
 int reader_i::serviceFunction()
 {
-    bulkio::OctetDataTransfer* packet = dataOctet_in->getPacket(bulkio::Const::BLOCKING);
-    if (!packet) {
+    bulkio::InOctetStream stream = dataOctet_in->getCurrentStream();
+    if (!stream) {
         return NOOP;
     }
-    received += packet->dataBuffer.size();
-    delete packet;
+    bulkio::OctetDataBlock block = stream.read();
+    if (!block) {
+        return NOOP;
+    }
+    received += block.size();
     return NORMAL;
 }

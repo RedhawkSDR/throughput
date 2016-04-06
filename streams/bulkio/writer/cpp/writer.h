@@ -35,6 +35,7 @@ class writer_i : public writer_base
 
     private:
         std::vector<CORBA::Octet> buffer;
+        bulkio::OutOctetStream stream;
 };
 
 #endif // WRITER_I_IMPL_H
